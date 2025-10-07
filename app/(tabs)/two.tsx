@@ -1,15 +1,20 @@
-import { StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
+import { useState } from 'react';
 
 import EditScreenInfo from '@/components/EditScreenInfo';
 import { Text, View } from '@/components/Themed';
 
+import Editor from "@/components/Editor/Editor"
+
 export default function TabTwoScreen() {
+  const [plainText, setPlainText] = useState("");
+  const [editorState, setEditorState] = useState<string | null>(null);
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Tab Two</Text>
-      <View style={styles.separator} lightColor="#eee" darkColor="rgba(255,255,255,0.1)" />
-      <EditScreenInfo path="app/(tabs)/two.tsx" />
-    </View>
+    <>
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <Editor setPlainText={setPlainText} setEditorState={setEditorState} />
+      </ScrollView>
+    </>
   );
 }
 
@@ -27,5 +32,8 @@ const styles = StyleSheet.create({
     marginVertical: 30,
     height: 1,
     width: '80%',
+  },
+  scrollContainer: {
+    flexGrow: 1,
   },
 });
