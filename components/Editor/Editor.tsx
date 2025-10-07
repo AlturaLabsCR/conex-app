@@ -31,12 +31,17 @@ const editorConfig = {
 export default function Editor({
   setPlainText,
   setEditorState,
+  initialDarkMode = false,
 }: {
     setPlainText?: React.Dispatch<React.SetStateAction<string>>;
     setEditorState?: React.Dispatch<React.SetStateAction<string | null>>;
+    initialDarkMode?: boolean;
   }) {
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const [darkMode, setDarkMode] = useState(prefersDark);
+  const [darkMode, setDarkMode] = useState(initialDarkMode);
+
+  useEffect(() => {
+    document.body.dataset.theme = darkMode ? "dark" : "light";
+  }, [darkMode]);
 
   const editorConfig = {
     namespace: "ConexEditor",

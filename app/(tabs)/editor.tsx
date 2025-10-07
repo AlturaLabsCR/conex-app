@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet, useColorScheme } from 'react-native';
 import { useState } from 'react';
 
 import EditScreenInfo from '@/components/EditScreenInfo';
@@ -6,13 +6,19 @@ import { Text, View } from '@/components/Themed';
 
 import Editor from "@/components/Editor/Editor"
 
-export default function TabTwoScreen() {
+export default function EditorScreen() {
   const [plainText, setPlainText] = useState("");
   const [editorState, setEditorState] = useState<string | null>(null);
+  const colorScheme = useColorScheme();
+
   return (
     <>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <Editor setPlainText={setPlainText} setEditorState={setEditorState} />
+        <Editor
+          setPlainText={setPlainText}
+          setEditorState={setEditorState}
+          initialDarkMode={colorScheme === "dark"}
+        />
       </ScrollView>
     </>
   );
