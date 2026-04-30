@@ -35,10 +35,25 @@
 
           androidSdk = androidComposition.androidsdk;
           androidSdkRoot = "${androidSdk}/libexec/android-sdk";
+          shellTools = pkgs.symlinkJoin {
+            name = "conex-shell-tools";
+            paths = [
+              (pkgs.writeShellScriptBin "adb" ''
+                HOME="''${ANDROID_USER_HOME:-$PWD/.android}" exec ${androidSdkRoot}/platform-tools/adb "$@"
+              '')
+              (pkgs.writeShellScriptBin "npm" ''
+                HOME="$PWD" exec ${pkgs.nodejs_24}/bin/npm "$@"
+              '')
+              (pkgs.writeShellScriptBin "npx" ''
+                HOME="$PWD" exec ${pkgs.nodejs_24}/bin/npx "$@"
+              '')
+            ];
+          };
         in
         {
           devShells.default = pkgs.mkShell {
             packages = [
+              shellTools
               pkgs.nodejs_24
               pkgs.jdk17
             ];
@@ -49,6 +64,7 @@
               export ANDROID_SDK_ROOT="${androidSdkRoot}"
 
               mkdir -p "$ANDROID_USER_HOME"
+              unalias adb npm npx 2>/dev/null || true
 
               android_cmdline_tools_bin=""
               android_build_tools_bin=""
@@ -74,6 +90,7 @@
               if [ -n "$android_cmdline_tools_bin" ]; then
                 export PATH="$android_cmdline_tools_bin:$PATH"
               fi
+              export PATH="${shellTools}/bin:$PATH"
             '';
           };
         };
