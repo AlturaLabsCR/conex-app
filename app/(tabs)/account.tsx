@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 
 import { useAuth } from '@/auth/auth-context';
+import { BodyNotice } from '@/components/body-notice';
 import ThemedScrollView from '@/components/themed-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -71,7 +72,11 @@ export default function AccountScreen() {
             </ThemedText>
             {isCodeStep ? (
               <>
-                <ThemedText style={styles.codeSentText}>{t('account.codeSent')}</ThemedText>
+                <BodyNotice
+                  message={t('account.codeSent')}
+                  title={t('account.codeSentNoticeTitle')}
+                  variant="note"
+                />
                 <TextInput
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -198,10 +203,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     paddingHorizontal: 14,
     paddingVertical: 12,
-  },
-  codeSentText: {
-    maxWidth: 420,
-    textAlign: 'center',
   },
   button: {
     minHeight: 44,

@@ -8,6 +8,7 @@ export const translations = {
     'account.loginHeading': 'Login',
     'account.emailPlaceholder': 'Email',
     'account.codePlaceholder': 'Code',
+    'account.codeSentNoticeTitle': 'Note',
     'account.codeSent': 'We sent a code to your email address. Enter it here to continue.',
     'account.login': 'Login',
     'account.logout': 'Logout',
@@ -22,6 +23,7 @@ export const translations = {
     'account.loginHeading': 'Inicio de Sesión',
     'account.emailPlaceholder': 'Correo electrónico',
     'account.codePlaceholder': 'Código',
+    'account.codeSentNoticeTitle': 'Nota',
     'account.codeSent':
       'Enviamos un código a tu correo electrónico. Ingrésalo aquí para continuar.',
     'account.login': 'Iniciar sesión',
