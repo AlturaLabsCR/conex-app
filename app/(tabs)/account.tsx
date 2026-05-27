@@ -13,14 +13,50 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useTranslation } from '@/i18n';
+import { TranslationKey, useTranslation } from '@/i18n';
 
-const ACCOUNT_PLAN = {
-  name: 'Pro Tier',
-  price: '$20',
-  dueDate: '2026-06-27',
-  renewable: true,
-  renewalPeriodDays: 30,
+type BillingPeriod = {
+  unit: 'day' | 'week' | 'month' | 'year';
+  count: number;
+};
+
+type Money = {
+  amount: number;
+  currency: string;
+};
+
+type AccountPlanResponse = {
+  plan: {
+    id: string;
+    name: string;
+    price: Money;
+    billingPeriod: BillingPeriod;
+  };
+  subscription: {
+    status: 'active' | 'past_due' | 'canceled';
+    dueDate: string | null;
+    renewable: boolean;
+  };
+};
+
+const ACCOUNT_PLAN: AccountPlanResponse = {
+  plan: {
+    id: 'pro',
+    name: 'Pro Tier',
+    price: {
+      amount: 20,
+      currency: 'USD',
+    },
+    billingPeriod: {
+      unit: 'month',
+      count: 1,
+    },
+  },
+  subscription: {
+    status: 'active',
+    dueDate: '2026-06-27',
+    renewable: true,
+  },
 };
 
 export default function AccountScreen() {
@@ -33,12 +69,22 @@ export default function AccountScreen() {
 
   const themeColors = Colors[colorScheme];
   const isLoggedIn = Boolean(email);
-  const renewalUntil = ACCOUNT_PLAN.renewable
-    ? formatRenewalUntilDate(ACCOUNT_PLAN.dueDate, ACCOUNT_PLAN.renewalPeriodDays, locale)
+  const renewalUntil = ACCOUNT_PLAN.subscription.renewable
+    ? formatRenewalUntilDate(
+        ACCOUNT_PLAN.subscription.dueDate,
+        ACCOUNT_PLAN.plan.billingPeriod,
+        locale
+      )
     : null;
-  const dueDate = ACCOUNT_PLAN.dueDate
-    ? formatDate(ACCOUNT_PLAN.dueDate, locale)
+  const dueDate = ACCOUNT_PLAN.subscription.dueDate
+    ? formatDate(ACCOUNT_PLAN.subscription.dueDate, locale)
     : t('account.noDueDate');
+  const planPrice = formatRecurringPrice(
+    ACCOUNT_PLAN.plan.price,
+    ACCOUNT_PLAN.plan.billingPeriod,
+    locale,
+    t
+  );
 
   function handleLogin() {
     if (!emailInput) {
@@ -79,9 +125,9 @@ export default function AccountScreen() {
             <ThemedText>{email}</ThemedText>
             <ThemedView style={[styles.planCard, { borderColor: themeColors.border }]}>
               <ThemedView style={styles.planHeader}>
-                <ThemedText style={styles.planName}>{ACCOUNT_PLAN.name}</ThemedText>
+                <ThemedText style={styles.planName}>{ACCOUNT_PLAN.plan.name}</ThemedText>
                 <ThemedText style={styles.planPrice}>
-                  {ACCOUNT_PLAN.price}
+                  {planPrice}
                 </ThemedText>
               </ThemedView>
               <ThemedView style={styles.planMeta}>
@@ -90,7 +136,7 @@ export default function AccountScreen() {
                 </ThemedText>
               </ThemedView>
               <ThemedView style={styles.planActions}>
-                {ACCOUNT_PLAN.renewable ? (
+                {ACCOUNT_PLAN.subscription.renewable ? (
                   <AccountButton
                     label={
                       renewalUntil
@@ -177,12 +223,65 @@ export default function AccountScreen() {
   );
 }
 
-function formatRenewalUntilDate(dueDate: string | null, renewalPeriodDays: number, locale: string) {
+function formatRenewalUntilDate(dueDate: string | null, billingPeriod: BillingPeriod, locale: string) {
   const renewalUntilDate = dueDate ? dateFromISODate(dueDate) : new Date();
 
-  renewalUntilDate.setDate(renewalUntilDate.getDate() + renewalPeriodDays);
+  addBillingPeriod(renewalUntilDate, billingPeriod);
 
   return formatDate(renewalUntilDate, locale);
+}
+
+function addBillingPeriod(date: Date, billingPeriod: BillingPeriod) {
+  if (billingPeriod.unit === 'day') {
+    date.setDate(date.getDate() + billingPeriod.count);
+  } else if (billingPeriod.unit === 'week') {
+    date.setDate(date.getDate() + billingPeriod.count * 7);
+  } else if (billingPeriod.unit === 'month') {
+    date.setMonth(date.getMonth() + billingPeriod.count);
+  } else {
+    date.setFullYear(date.getFullYear() + billingPeriod.count);
+  }
+}
+
+function formatMoney(price: Money, locale: string) {
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: price.currency,
+    maximumFractionDigits: 0,
+  }).format(price.amount);
+}
+
+function formatRecurringPrice(
+  price: Money,
+  billingPeriod: BillingPeriod,
+  locale: string,
+  t: (key: TranslationKey) => string
+) {
+  const amount = formatMoney(price, locale);
+
+  if (billingPeriod.count === 1) {
+    return `${amount}/${periodShortName(billingPeriod.unit, t)}`;
+  }
+
+  return `${amount} / ${billingPeriod.count} ${periodLongName(
+    billingPeriod.unit,
+    billingPeriod.count,
+    t
+  )}`;
+}
+
+function periodShortName(unit: BillingPeriod['unit'], t: (key: TranslationKey) => string) {
+  return t(`billing.periodShort.${unit}`);
+}
+
+function periodLongName(
+  unit: BillingPeriod['unit'],
+  count: number,
+  t: (key: TranslationKey) => string
+) {
+  const plurality = count === 1 ? 'one' : 'other';
+
+  return t(`billing.periodLong.${unit}.${plurality}`);
 }
 
 function formatDate(date: string | Date, locale: string) {

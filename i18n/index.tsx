@@ -2,6 +2,8 @@ import { createContext, PropsWithChildren, useContext, useMemo } from 'react';
 
 import { Locale, TranslationKey, translations } from '@/i18n/translations';
 
+export type { TranslationKey };
+
 type I18nContextValue = {
   locale: Locale;
   t: (key: TranslationKey) => string;
