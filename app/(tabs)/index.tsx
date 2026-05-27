@@ -146,8 +146,8 @@ function tagColorFor(tag: string) {
   const hue = hash % 360;
 
   return {
-    background: `hsl(${hue}, 72%, 90%)`,
-    text: `hsl(${hue}, 58%, 28%)`,
+    background: `hsl(${hue}, 62%, 38%)`,
+    text: `hsl(${hue}, 72%, 90%)`,
   };
 }
 
