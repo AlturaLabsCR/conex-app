@@ -13,6 +13,8 @@ export const translations = {
     'account.codeSentNoticeTitle': 'Note',
     'account.codeSent': 'We sent a code to your email address. Enter it here to continue.',
     'account.login': 'Login',
+    'account.userTitle': 'User',
+    'account.changeEmail': 'Change email',
     'account.logout': 'Logout',
     'account.planDueDateLabel': 'Due',
     'account.noDueDate': 'No due date',
@@ -48,6 +50,8 @@ export const translations = {
     'account.codeSent':
       'Enviamos un código a tu correo electrónico. Ingrésalo aquí para continuar.',
     'account.login': 'Iniciar sesión',
+    'account.userTitle': 'Usuario',
+    'account.changeEmail': 'Cambiar correo',
     'account.logout': 'Cerrar sesión',
     'account.planDueDateLabel': 'Vence',
     'account.noDueDate': 'Sin fecha de vencimiento',

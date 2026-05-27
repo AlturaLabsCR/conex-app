@@ -60,6 +60,7 @@ export default function AccountScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const { locale, t } = useTranslation();
   const [isCodeStep, setIsCodeStep] = useState(false);
+  const [isChangingEmail, setIsChangingEmail] = useState(false);
   const [emailInput, setEmailInput] = useState('');
   const [codeInput, setCodeInput] = useState('');
 
@@ -96,8 +97,16 @@ export default function AccountScreen() {
     }
 
     await login(emailInput);
+    setIsChangingEmail(false);
     setIsCodeStep(false);
     setCodeInput('');
+  }
+
+  function handleChangeEmail() {
+    setEmailInput(email);
+    setCodeInput('');
+    setIsCodeStep(false);
+    setIsChangingEmail(true);
   }
 
   async function handleLogout() {
@@ -105,6 +114,7 @@ export default function AccountScreen() {
     setEmailInput('');
     setCodeInput('');
     setIsCodeStep(false);
+    setIsChangingEmail(false);
   }
 
   return (
@@ -116,9 +126,26 @@ export default function AccountScreen() {
 
         {isLoading ? (
           <ActivityIndicator color={themeColors.control} />
-        ) : isLoggedIn ? (
+        ) : isLoggedIn && !isChangingEmail ? (
           <ThemedView style={styles.content}>
-            <ThemedText>{email}</ThemedText>
+            <ThemedView style={[styles.planCard, { borderColor: themeColors.border }]}>
+              <ThemedView style={styles.planHeader}>
+                <ThemedText style={styles.planName}>{t('account.userTitle')}</ThemedText>
+              </ThemedView>
+              <ThemedView style={styles.planMeta}>
+                <ThemedText style={[styles.accountEmail, { color: themeColors.secondaryControl }]}>
+                  {email}
+                </ThemedText>
+              </ThemedView>
+              <ThemedView style={styles.planActions}>
+                <AccountButton label={t('account.changeEmail')} onPress={handleChangeEmail} />
+                <AccountButton
+                  label={t('account.logout')}
+                  onPress={handleLogout}
+                  tone="secondary"
+                />
+              </ThemedView>
+            </ThemedView>
             <ThemedView style={[styles.planCard, { borderColor: themeColors.border }]}>
               <ThemedView style={styles.planHeader}>
                 <ThemedText style={styles.planName}>{ACCOUNT_SUBSCRIPTION.plan.name}</ThemedText>
@@ -149,12 +176,11 @@ export default function AccountScreen() {
                 />
               </ThemedView>
             </ThemedView>
-            <AccountButton label={t('account.logout')} onPress={handleLogout} tone="secondary" />
           </ThemedView>
         ) : (
           <ThemedView style={[styles.content, styles.loginFlow]}>
             <ThemedText type="title" style={styles.loginHeading}>
-              {t('account.loginHeading')}
+              {isChangingEmail ? t('account.changeEmail') : t('account.loginHeading')}
             </ThemedText>
             {isCodeStep ? (
               <>
@@ -389,6 +415,9 @@ const styles = StyleSheet.create({
     fontSize: 24,
     lineHeight: 30,
     fontWeight: '700',
+  },
+  accountEmail: {
+    width: '100%',
   },
   planMeta: {
     alignItems: 'flex-start',
