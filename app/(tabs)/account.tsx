@@ -25,21 +25,21 @@ type Money = {
   currency: string;
 };
 
-type AccountPlanResponse = {
+type AccountSubscriptionResponse = {
+  status: 'active' | 'past_due' | 'canceled';
+  dueDate: string | null;
   plan: {
     id: string;
     name: string;
     price: Money;
     billingPeriod: BillingPeriod;
-  };
-  subscription: {
-    status: 'active' | 'past_due' | 'canceled';
-    dueDate: string | null;
-    renewable: boolean;
+    supportsRenewal: boolean;
   };
 };
 
-const ACCOUNT_PLAN: AccountPlanResponse = {
+const ACCOUNT_SUBSCRIPTION: AccountSubscriptionResponse = {
+  status: 'active',
+  dueDate: '2026-06-27',
   plan: {
     id: 'pro',
     name: 'Pro Tier',
@@ -51,11 +51,7 @@ const ACCOUNT_PLAN: AccountPlanResponse = {
       unit: 'month',
       count: 1,
     },
-  },
-  subscription: {
-    status: 'active',
-    dueDate: '2026-06-27',
-    renewable: true,
+    supportsRenewal: true,
   },
 };
 
@@ -69,19 +65,19 @@ export default function AccountScreen() {
 
   const themeColors = Colors[colorScheme];
   const isLoggedIn = Boolean(email);
-  const renewalUntil = ACCOUNT_PLAN.subscription.renewable
+  const renewalUntil = ACCOUNT_SUBSCRIPTION.plan.supportsRenewal
     ? formatRenewalUntilDate(
-        ACCOUNT_PLAN.subscription.dueDate,
-        ACCOUNT_PLAN.plan.billingPeriod,
+        ACCOUNT_SUBSCRIPTION.dueDate,
+        ACCOUNT_SUBSCRIPTION.plan.billingPeriod,
         locale
       )
     : null;
-  const dueDate = ACCOUNT_PLAN.subscription.dueDate
-    ? formatDate(ACCOUNT_PLAN.subscription.dueDate, locale)
+  const dueDate = ACCOUNT_SUBSCRIPTION.dueDate
+    ? formatDate(ACCOUNT_SUBSCRIPTION.dueDate, locale)
     : t('account.noDueDate');
   const planPrice = formatRecurringPrice(
-    ACCOUNT_PLAN.plan.price,
-    ACCOUNT_PLAN.plan.billingPeriod,
+    ACCOUNT_SUBSCRIPTION.plan.price,
+    ACCOUNT_SUBSCRIPTION.plan.billingPeriod,
     locale,
     t
   );
@@ -125,7 +121,7 @@ export default function AccountScreen() {
             <ThemedText>{email}</ThemedText>
             <ThemedView style={[styles.planCard, { borderColor: themeColors.border }]}>
               <ThemedView style={styles.planHeader}>
-                <ThemedText style={styles.planName}>{ACCOUNT_PLAN.plan.name}</ThemedText>
+                <ThemedText style={styles.planName}>{ACCOUNT_SUBSCRIPTION.plan.name}</ThemedText>
                 <ThemedText style={styles.planPrice}>
                   {planPrice}
                 </ThemedText>
@@ -136,7 +132,7 @@ export default function AccountScreen() {
                 </ThemedText>
               </ThemedView>
               <ThemedView style={styles.planActions}>
-                {ACCOUNT_PLAN.subscription.renewable ? (
+                {ACCOUNT_SUBSCRIPTION.plan.supportsRenewal ? (
                   <AccountButton
                     label={
                       renewalUntil
