@@ -16,21 +16,29 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTranslation } from '@/i18n';
 
 const ACCOUNT_PLAN = {
-  name: 'Free Tier',
-  price: '$0',
-  dueDate: null,
+  name: 'Pro Tier',
+  price: '$20',
+  dueDate: '2026-06-27',
+  renewable: true,
+  renewalPeriodDays: 30,
 };
 
 export default function AccountScreen() {
   const { email, isLoading, login, logout } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
-  const { t } = useTranslation();
+  const { locale, t } = useTranslation();
   const [isCodeStep, setIsCodeStep] = useState(false);
   const [emailInput, setEmailInput] = useState('');
   const [codeInput, setCodeInput] = useState('');
 
   const themeColors = Colors[colorScheme];
   const isLoggedIn = Boolean(email);
+  const renewalUntil = ACCOUNT_PLAN.renewable
+    ? formatRenewalUntilDate(ACCOUNT_PLAN.dueDate, ACCOUNT_PLAN.renewalPeriodDays, locale)
+    : null;
+  const dueDate = ACCOUNT_PLAN.dueDate
+    ? formatDate(ACCOUNT_PLAN.dueDate, locale)
+    : t('account.noDueDate');
 
   function handleLogin() {
     if (!emailInput) {
@@ -71,16 +79,33 @@ export default function AccountScreen() {
             <ThemedText>{email}</ThemedText>
             <ThemedView style={[styles.planCard, { borderColor: themeColors.border }]}>
               <ThemedView style={styles.planHeader}>
-                <ThemedText type="subtitle">{ACCOUNT_PLAN.name}</ThemedText>
-                <ThemedText type="title">{ACCOUNT_PLAN.price}</ThemedText>
-              </ThemedView>
-              <ThemedView style={styles.planMeta}>
-                <ThemedText type="defaultSemiBold">{t('account.planDueDateLabel')}</ThemedText>
-                <ThemedText style={{ color: themeColors.secondaryControl }}>
-                  {ACCOUNT_PLAN.dueDate ?? t('account.noDueDate')}
+                <ThemedText style={styles.planName}>{ACCOUNT_PLAN.name}</ThemedText>
+                <ThemedText style={styles.planPrice}>
+                  {ACCOUNT_PLAN.price}
                 </ThemedText>
               </ThemedView>
-              <AccountButton label={t('account.renew')} onPress={() => {}} />
+              <ThemedView style={styles.planMeta}>
+                <ThemedText style={{ color: themeColors.secondaryControl }}>
+                  {t('account.planDueDateLabel')} {dueDate}
+                </ThemedText>
+              </ThemedView>
+              <ThemedView style={styles.planActions}>
+                {ACCOUNT_PLAN.renewable ? (
+                  <AccountButton
+                    label={
+                      renewalUntil
+                        ? t('account.renewUntil').replace('{{date}}', renewalUntil)
+                        : t('account.renew')
+                    }
+                    onPress={() => {}}
+                  />
+                ) : null}
+                <AccountButton
+                  label={t('account.switchPlan')}
+                  onPress={() => {}}
+                  tone="secondary"
+                />
+              </ThemedView>
             </ThemedView>
             <AccountButton label={t('account.logout')} onPress={handleLogout} tone="secondary" />
           </ThemedView>
@@ -150,6 +175,30 @@ export default function AccountScreen() {
       </ThemedView>
     </ThemedScrollView>
   );
+}
+
+function formatRenewalUntilDate(dueDate: string | null, renewalPeriodDays: number, locale: string) {
+  const renewalUntilDate = dueDate ? dateFromISODate(dueDate) : new Date();
+
+  renewalUntilDate.setDate(renewalUntilDate.getDate() + renewalPeriodDays);
+
+  return formatDate(renewalUntilDate, locale);
+}
+
+function formatDate(date: string | Date, locale: string) {
+  const value = typeof date === 'string' ? dateFromISODate(date) : date;
+
+  return new Intl.DateTimeFormat(locale, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(value);
+}
+
+function dateFromISODate(date: string) {
+  const [year, month, day] = date.split('-').map(Number);
+
+  return new Date(year, month - 1, day);
 }
 
 function AccountButton({
@@ -231,10 +280,26 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   planHeader: {
-    gap: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  planPrice: {
+    fontSize: 26,
+    lineHeight: 30,
+    fontWeight: '700',
+  },
+  planName: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: '700',
   },
   planMeta: {
-    gap: 4,
+    alignItems: 'flex-start',
+  },
+  planActions: {
+    gap: 12,
   },
   button: {
     minHeight: 44,
