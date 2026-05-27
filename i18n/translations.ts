@@ -5,6 +5,13 @@ export const translations = {
     'tabs.account': 'Account',
     'screens.sites.heading': 'Sites',
     'screens.account.heading': 'Account',
+    'account.loginHeading': 'Login',
+    'account.emailPlaceholder': 'Email',
+    'account.codePlaceholder': 'Code',
+    'account.codeSent': 'We sent a code to your email address. Enter it here to continue.',
+    'account.login': 'Login',
+    'account.logout': 'Logout',
+    'account.verify': 'Verify',
   },
   es: {
     'tabs.sites': 'Páginas',
@@ -12,6 +19,14 @@ export const translations = {
     'tabs.account': 'Cuenta',
     'screens.sites.heading': 'Páginas',
     'screens.account.heading': 'Cuenta',
+    'account.loginHeading': 'Inicio de Sesión',
+    'account.emailPlaceholder': 'Correo electrónico',
+    'account.codePlaceholder': 'Código',
+    'account.codeSent':
+      'Enviamos un código a tu correo electrónico. Ingrésalo aquí para continuar.',
+    'account.login': 'Iniciar sesión',
+    'account.logout': 'Cerrar sesión',
+    'account.verify': 'Verificar',
   },
 } as const;
 

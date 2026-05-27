@@ -1,6 +1,7 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
+import { Tabs, useRouter, useSegments } from 'expo-router';
+import React, { useEffect } from 'react';
 
+import { useAuth } from '@/auth/auth-context';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -8,7 +9,19 @@ import { useTranslation } from '@/i18n';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { email, isLoading } = useAuth();
+  const router = useRouter();
+  const segments = useSegments();
   const { t } = useTranslation();
+  const isLoggedIn = Boolean(email);
+
+  useEffect(() => {
+    const currentTab = segments[1];
+
+    if (!isLoading && !isLoggedIn && (currentTab === undefined || currentTab === 'editor')) {
+      router.replace('/account');
+    }
+  }, [isLoading, isLoggedIn, router, segments]);
 
   return (
     <Tabs
@@ -24,6 +37,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
+          href: isLoggedIn ? '/' : null,
           title: t('tabs.sites'),
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
@@ -31,6 +45,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="editor"
         options={{
+          href: isLoggedIn ? '/editor' : null,
           title: t('tabs.editor'),
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="pencil" color={color} />,
         }}

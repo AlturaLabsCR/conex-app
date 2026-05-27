@@ -23,6 +23,9 @@ export default function ThemedScrollView({
 const styles = StyleSheet.create({
   content: {
     flex: 1,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
     padding: 32,
     gap: 16,
     overflow: 'hidden',
