@@ -176,6 +176,23 @@ export default function AccountScreen() {
                 />
               </ThemedView>
             </ThemedView>
+            <ThemedView style={[styles.planCard, { borderColor: themeColors.border }]}>
+              <ThemedView style={styles.planHeader}>
+                <ThemedText style={styles.planName}>{t('account.dangerZone')}</ThemedText>
+              </ThemedView>
+              <BodyNotice
+                message={t('account.deleteAccountWarning')}
+                title={t('account.warning')}
+                variant="warning"
+              />
+              <ThemedView style={styles.planActions}>
+                <AccountButton
+                  label={t('account.deleteAccount')}
+                  onPress={() => {}}
+                  tone="destructive"
+                />
+              </ThemedView>
+            </ThemedView>
           </ThemedView>
         ) : (
           <ThemedView style={[styles.content, styles.loginFlow]}>
@@ -331,12 +348,17 @@ function AccountButton({
   disabled?: boolean;
   label: string;
   onPress: () => void | Promise<void>;
-  tone?: 'primary' | 'secondary';
+  tone?: 'primary' | 'secondary' | 'destructive';
 }) {
   const colorScheme = useColorScheme() ?? 'light';
   const themeColors = Colors[colorScheme];
   const isPrimary = tone === 'primary';
-  const buttonColor = isPrimary ? themeColors.control : themeColors.secondaryControl;
+  const isDestructive = tone === 'destructive';
+  const buttonColor = isPrimary
+    ? themeColors.control
+    : isDestructive
+      ? themeColors.destructive
+      : themeColors.secondaryControl;
 
   return (
     <Pressable
