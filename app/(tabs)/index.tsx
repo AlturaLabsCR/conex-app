@@ -1,8 +1,10 @@
-import { StyleSheet, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import ThemedScrollView from '@/components/themed-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTranslation } from '@/i18n';
@@ -60,6 +62,10 @@ function SiteCard({ site }: { site: Site }) {
   const themeColors = Colors[colorScheme];
   const { t } = useTranslation();
 
+  async function copyUrl() {
+    await Clipboard.setStringAsync(site.url);
+  }
+
   return (
     <ThemedView
       style={[
@@ -71,7 +77,15 @@ function SiteCard({ site }: { site: Site }) {
       <View style={styles.cardHeader}>
         <View style={styles.siteIdentity}>
           <ThemedText type="subtitle">{site.name}</ThemedText>
-          <ThemedText style={{ color: themeColors.secondaryControl }}>{site.url}</ThemedText>
+          <Pressable
+            accessibilityRole="button"
+            onPress={copyUrl}
+            style={({ pressed }) => [styles.urlButton, { opacity: pressed ? 0.7 : 1 }]}>
+            <ThemedText style={[styles.urlText, { color: themeColors.secondaryControl }]}>
+              {site.url}
+            </ThemedText>
+            <IconSymbol size={18} name="doc.on.doc" color={themeColors.secondaryControl} />
+          </Pressable>
         </View>
         <View
           style={[
@@ -80,6 +94,11 @@ function SiteCard({ site }: { site: Site }) {
               backgroundColor: site.public ? tagColorFor('public').background : themeColors.border,
             },
           ]}>
+          <IconSymbol
+            size={14}
+            name={site.public ? 'eye' : 'eye.slash'}
+            color={site.public ? tagColorFor('public').text : themeColors.text}
+          />
           <ThemedText
             type="defaultSemiBold"
             style={[
@@ -161,7 +180,20 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
+  urlButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 8,
+    maxWidth: '100%',
+  },
+  urlText: {
+    flexShrink: 1,
+  },
   visibilityPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
