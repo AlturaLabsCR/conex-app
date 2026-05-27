@@ -15,6 +15,12 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTranslation } from '@/i18n';
 
+const ACCOUNT_PLAN = {
+  name: 'Free Tier',
+  price: '$0',
+  dueDate: null,
+};
+
 export default function AccountScreen() {
   const { email, isLoading, login, logout } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
@@ -63,6 +69,19 @@ export default function AccountScreen() {
         ) : isLoggedIn ? (
           <ThemedView style={styles.content}>
             <ThemedText>{email}</ThemedText>
+            <ThemedView style={[styles.planCard, { borderColor: themeColors.border }]}>
+              <ThemedView style={styles.planHeader}>
+                <ThemedText type="subtitle">{ACCOUNT_PLAN.name}</ThemedText>
+                <ThemedText type="title">{ACCOUNT_PLAN.price}</ThemedText>
+              </ThemedView>
+              <ThemedView style={styles.planMeta}>
+                <ThemedText type="defaultSemiBold">{t('account.planDueDateLabel')}</ThemedText>
+                <ThemedText style={{ color: themeColors.secondaryControl }}>
+                  {ACCOUNT_PLAN.dueDate ?? t('account.noDueDate')}
+                </ThemedText>
+              </ThemedView>
+              <AccountButton label={t('account.renew')} onPress={() => {}} />
+            </ThemedView>
             <AccountButton label={t('account.logout')} onPress={handleLogout} tone="secondary" />
           </ThemedView>
         ) : (
@@ -203,6 +222,19 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     paddingHorizontal: 14,
     paddingVertical: 12,
+  },
+  planCard: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 16,
+    gap: 16,
+  },
+  planHeader: {
+    gap: 4,
+  },
+  planMeta: {
+    gap: 4,
   },
   button: {
     minHeight: 44,

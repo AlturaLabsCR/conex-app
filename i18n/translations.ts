@@ -14,6 +14,9 @@ export const translations = {
     'account.codeSent': 'We sent a code to your email address. Enter it here to continue.',
     'account.login': 'Login',
     'account.logout': 'Logout',
+    'account.planDueDateLabel': 'Due date',
+    'account.noDueDate': 'No due date',
+    'account.renew': 'Renew',
     'account.verify': 'Verify',
   },
   es: {
@@ -32,6 +35,9 @@ export const translations = {
       'Enviamos un código a tu correo electrónico. Ingrésalo aquí para continuar.',
     'account.login': 'Iniciar sesión',
     'account.logout': 'Cerrar sesión',
+    'account.planDueDateLabel': 'Fecha de vencimiento',
+    'account.noDueDate': 'Sin fecha de vencimiento',
+    'account.renew': 'Renovar',
     'account.verify': 'Verificar',
   },
 } as const;
