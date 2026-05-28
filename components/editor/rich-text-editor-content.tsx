@@ -394,7 +394,7 @@ const styles = `
     border: 1px solid #d5dce1;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.94);
-    box-shadow: 0 8px 24px rgba(17, 24, 28, 0.16);
+    box-shadow: 0 6px 16px rgba(17, 24, 28, 0.1);
     transform: translateX(-50%);
     transition:
       opacity 180ms ease,
@@ -410,12 +410,13 @@ const styles = `
   .dark .toolbar {
     border-color: #343a3e;
     background: rgba(21, 23, 24, 0.94);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.36);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.24);
   }
 
   .toolbar-tools-wrap {
     position: relative;
     min-width: 0;
+    margin-inline: 8px;
     overflow: hidden;
   }
 
@@ -455,8 +456,8 @@ const styles = `
     min-width: 0;
     overflow-x: auto;
     overflow-y: hidden;
-    padding: 0 12px;
-    scroll-padding-inline: 12px;
+    padding: 0;
+    scroll-padding-inline: 4px;
     scrollbar-color: rgba(104, 112, 118, 0.72) transparent;
     scrollbar-width: thin;
     -webkit-overflow-scrolling: touch;

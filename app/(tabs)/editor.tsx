@@ -119,8 +119,8 @@ export default function EditorScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    paddingHorizontal: 14,
-    paddingBottom: 14,
+    paddingHorizontal: 18,
+    paddingBottom: 18,
   },
   content: {
     flex: 1,
