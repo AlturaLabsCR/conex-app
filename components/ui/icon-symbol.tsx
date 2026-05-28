@@ -22,6 +22,9 @@ const MAPPING = {
   eye: 'visibility',
   'eye.slash': 'visibility-off',
   plus: 'add',
+  checkmark: 'check',
+  'arrow.clockwise': 'sync',
+  trash: 'delete',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
 } as IconMapping;

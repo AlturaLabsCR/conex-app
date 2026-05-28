@@ -310,6 +310,13 @@ export async function updateSite(
   });
 }
 
+export async function deleteSite(path: string) {
+  await request<void>(`/api/sites/${encodeURIComponent(path)}`, {
+    method: 'DELETE',
+    authenticated: true,
+  });
+}
+
 export async function sitePathAvailable(path: string) {
   try {
     await request<void>(`/api/sites/${encodeURIComponent(path)}`, { method: 'HEAD' });

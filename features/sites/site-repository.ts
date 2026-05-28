@@ -6,7 +6,9 @@ export interface SiteRepository {
   createSite(input: { name: string; path: string }): Promise<Site>;
   listSites(): Promise<Site[]>;
   getSite(path: string): Promise<SiteWithContent | null>;
+  deleteSite(path: string): Promise<void>;
   saveSiteContent(path: string, contentHtml: string): Promise<SiteWithContent | null>;
+  updateSiteTags(path: string, tags: string[]): Promise<void>;
   updateSiteVisibility(path: string, isPublic: boolean): Promise<void>;
 }
 
@@ -60,10 +62,18 @@ export const siteRepository: SiteRepository = {
     }
   },
 
+  async deleteSite(path) {
+    await conexApi.deleteSite(path);
+  },
+
   async saveSiteContent(path, contentHtml) {
     await conexApi.updateSite(path, { html: contentHtml });
 
     return siteRepository.getSite(path);
+  },
+
+  async updateSiteTags(path, tags) {
+    await conexApi.updateSite(path, { tags });
   },
 
   async updateSiteVisibility(path, isPublic) {

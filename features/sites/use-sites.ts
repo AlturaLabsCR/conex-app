@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { siteRepository } from './site-repository';
 import type { Site } from './types';
 
-export function useSites() {
+export function useSites(reloadKey?: string) {
   const [error, setError] = useState('');
   const [sites, setSites] = useState<Site[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -51,7 +51,7 @@ export function useSites() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [reloadKey]);
 
   return {
     reloadSites: loadSites,

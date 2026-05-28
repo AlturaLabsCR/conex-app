@@ -1,8 +1,10 @@
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
 
+import { useAuth } from '@/auth/auth-context';
 import ThemedScrollView from '@/components/themed-scroll-view';
 import { BodyNotice } from '@/components/body-notice';
 import { ThemedActivityIndicator } from '@/components/themed-activity-indicator';
@@ -18,7 +20,10 @@ import { useTranslation } from '@/i18n';
 
 export default function SitesScreen() {
   const { t } = useTranslation();
-  const { error, isLoading, reloadSites, sites } = useSites();
+  const { email } = useAuth();
+  const colorScheme = useColorScheme() ?? 'light';
+  const themeColors = Colors[colorScheme];
+  const { error, isLoading, reloadSites, sites } = useSites(email);
   const router = useRouter();
 
   return (
@@ -26,6 +31,17 @@ export default function SitesScreen() {
       <ThemedView style={styles.container}>
         <ThemedView style={styles.titleContainer}>
           <ThemedText type="title">{t('screens.sites.heading')}</ThemedText>
+          <Pressable
+            accessibilityLabel={t('sites.refresh')}
+            accessibilityRole="button"
+            disabled={isLoading}
+            onPress={reloadSites}
+            style={({ pressed }) => [
+              styles.headerIconButton,
+              { opacity: isLoading ? 0.5 : pressed ? 0.7 : 1 },
+            ]}>
+            <IconSymbol name="arrow.clockwise" size={20} color={themeColors.secondaryControl} />
+          </Pressable>
         </ThemedView>
 
         {isLoading ? (
@@ -37,6 +53,8 @@ export default function SitesScreen() {
             {sites.map((site) => (
               <SiteCard
                 key={site.path}
+                onDelete={reloadSites}
+                onTagsChange={reloadSites}
                 onVisibilityChange={reloadSites}
                 site={site}
                 onOpen={() =>
@@ -185,19 +203,34 @@ function CreateSiteForm({ onCreated }: { onCreated: (site: Site) => void | Promi
 }
 
 function SiteCard({
+  onDelete,
   onOpen,
+  onTagsChange,
   onVisibilityChange,
   site,
 }: {
+  onDelete: () => void | Promise<void>;
   onOpen: () => void;
+  onTagsChange: () => void | Promise<void>;
   onVisibilityChange: () => void | Promise<void>;
   site: Site;
 }) {
   const colorScheme = useColorScheme() ?? 'light';
   const themeColors = Colors[colorScheme];
   const { t } = useTranslation();
-  const [visibilityError, setVisibilityError] = useState('');
+  const swipeableRef = useRef<Swipeable>(null);
+  const [siteError, setSiteError] = useState('');
+  const [isAddingTag, setIsAddingTag] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isUpdatingTags, setIsUpdatingTags] = useState(false);
   const [isUpdatingVisibility, setIsUpdatingVisibility] = useState(false);
+  const [newTag, setNewTag] = useState('');
+
+  const trimmedNewTag = newTag.trim();
+  const canAddTag =
+    Boolean(trimmedNewTag) &&
+    !site.tags.some((tag) => tag.toLowerCase() === trimmedNewTag.toLowerCase()) &&
+    !isUpdatingTags;
 
   async function copyUrl(event: { stopPropagation?: () => void }) {
     event.stopPropagation?.();
@@ -211,86 +244,215 @@ function SiteCard({
       return;
     }
 
-    setVisibilityError('');
+    setSiteError('');
     setIsUpdatingVisibility(true);
 
     try {
       await siteRepository.updateSiteVisibility(site.path, !site.public);
       await onVisibilityChange();
     } catch (error) {
-      setVisibilityError(error instanceof Error ? error.message : t('sites.visibilityError'));
+      setSiteError(error instanceof Error ? error.message : t('sites.visibilityError'));
     } finally {
       setIsUpdatingVisibility(false);
     }
   }
 
-  return (
+  async function addTag(event: { stopPropagation?: () => void }) {
+    event.stopPropagation?.();
+
+    if (!canAddTag) {
+      return;
+    }
+
+    setSiteError('');
+    setIsUpdatingTags(true);
+
+    try {
+      await siteRepository.updateSiteTags(site.path, [...site.tags, trimmedNewTag]);
+      setNewTag('');
+      setIsAddingTag(false);
+      await onTagsChange();
+    } catch (error) {
+      setSiteError(error instanceof Error ? error.message : t('sites.tagError'));
+    } finally {
+      setIsUpdatingTags(false);
+    }
+  }
+
+  function confirmDelete() {
+    swipeableRef.current?.close();
+    Alert.alert(t('sites.deleteTitle'), t('sites.deleteMessage'), [
+      { text: t('sites.deleteCancel'), style: 'cancel' },
+      {
+        text: t('sites.deleteConfirm'),
+        style: 'destructive',
+        onPress: () => {
+          void deleteSite();
+        },
+      },
+    ]);
+  }
+
+  async function deleteSite() {
+    if (isDeleting) {
+      return;
+    }
+
+    setSiteError('');
+    setIsDeleting(true);
+
+    try {
+      await siteRepository.deleteSite(site.path);
+      await onDelete();
+    } catch (error) {
+      setSiteError(error instanceof Error ? error.message : t('sites.deleteError'));
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  const renderRightActions = () => (
     <Pressable
       accessibilityRole="button"
-      onPress={onOpen}
+      disabled={isDeleting}
+      onPress={confirmDelete}
       style={({ pressed }) => [
-        styles.card,
-        {
-          borderColor: themeColors.border,
-          backgroundColor: themeColors.cardBackground,
-          opacity: pressed ? 0.8 : 1,
-        },
+        styles.deleteAction,
+        { opacity: isDeleting ? 0.6 : pressed ? 0.8 : 1 },
       ]}>
-      <View style={styles.cardHeader}>
-        <View style={styles.siteIdentity}>
-          <ThemedText type="subtitle">{site.name}</ThemedText>
+      {isDeleting ? (
+        <ThemedActivityIndicator />
+      ) : (
+        <>
+          <IconSymbol name="trash" size={20} color="#ffffff" />
+          <ThemedText type="defaultSemiBold" style={styles.deleteActionText}>
+            {t('sites.delete')}
+          </ThemedText>
+        </>
+      )}
+    </Pressable>
+  );
+
+  return (
+    <Swipeable ref={swipeableRef} renderRightActions={renderRightActions}>
+      <View
+        style={[
+          styles.card,
+          {
+            borderColor: themeColors.border,
+            backgroundColor: themeColors.cardBackground,
+          },
+        ]}>
+        <View style={styles.cardHeader}>
+          <View style={styles.siteIdentity}>
+            <ThemedText type="subtitle">{site.name}</ThemedText>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            disabled={isUpdatingVisibility}
+            onPress={updateVisibility}
+            style={[
+              styles.visibilityPill,
+              {
+                backgroundColor: site.public ? tagColorFor('public').background : themeColors.border,
+                opacity: isUpdatingVisibility ? 0.6 : 1,
+              },
+            ]}>
+            {isUpdatingVisibility ? (
+              <ThemedActivityIndicator />
+            ) : (
+              <>
+                <IconSymbol
+                  size={14}
+                  name={site.public ? 'eye' : 'eye.slash'}
+                  color={site.public ? tagColorFor('public').text : themeColors.text}
+                />
+                <ThemedText
+                  type="defaultSemiBold"
+                  style={[
+                    styles.visibilityText,
+                    { color: site.public ? tagColorFor('public').text : themeColors.text },
+                  ]}>
+                  {site.public ? t('sites.public') : t('sites.private')}
+                </ThemedText>
+              </>
+            )}
+          </Pressable>
+        </View>
+
+        {siteError ? <BodyNotice message={siteError} variant="error" /> : null}
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={copyUrl}
+          style={({ pressed }) => [styles.urlButton, { opacity: pressed ? 0.7 : 1 }]}>
+          <ThemedText style={[styles.urlText, { color: themeColors.secondaryControl }]}>
+            {site.url}
+          </ThemedText>
+          <IconSymbol size={18} name="doc.on.doc" color={themeColors.secondaryControl} />
+        </Pressable>
+
+        <View style={styles.tagList}>
+          {site.tags.map((tag) => (
+            <TagPill key={tag} tag={tag} />
+          ))}
+          {isAddingTag ? (
+            <View style={[styles.addTagPill, { backgroundColor: themeColors.border }]}>
+              <TextInput
+                autoCapitalize="none"
+                autoCorrect={false}
+                onChangeText={setNewTag}
+                onSubmitEditing={addTag}
+                placeholder={t('sites.tagPlaceholder')}
+                placeholderTextColor={themeColors.icon}
+                style={[styles.tagInput, { color: themeColors.text }]}
+                value={newTag}
+              />
+              <Pressable
+                accessibilityLabel={t('sites.addTag')}
+                accessibilityRole="button"
+                disabled={!canAddTag}
+                onPress={addTag}
+                style={{ opacity: canAddTag ? 1 : 0.45 }}>
+                {isUpdatingTags ? (
+                  <ThemedActivityIndicator />
+                ) : (
+                  <IconSymbol name="checkmark" size={16} color={themeColors.text} />
+                )}
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable
+              accessibilityLabel={t('sites.addTag')}
+              accessibilityRole="button"
+              onPress={(event) => {
+                event.stopPropagation();
+                setIsAddingTag(true);
+              }}
+              style={[styles.addTagPill, { backgroundColor: themeColors.border }]}>
+              <IconSymbol name="plus" size={16} color={themeColors.text} />
+            </Pressable>
+          )}
         </View>
         <Pressable
           accessibilityRole="button"
-          disabled={isUpdatingVisibility}
-          onPress={updateVisibility}
-          style={[
-            styles.visibilityPill,
+          onPress={onOpen}
+          style={({ pressed }) => [
+            styles.editButton,
             {
-              backgroundColor: site.public ? tagColorFor('public').background : themeColors.border,
-              opacity: isUpdatingVisibility ? 0.6 : 1,
+              borderColor: themeColors.secondaryControl,
+              opacity: pressed ? 0.8 : 1,
             },
           ]}>
-          {isUpdatingVisibility ? (
-            <ThemedActivityIndicator />
-          ) : (
-            <>
-              <IconSymbol
-                size={14}
-                name={site.public ? 'eye' : 'eye.slash'}
-                color={site.public ? tagColorFor('public').text : themeColors.text}
-              />
-              <ThemedText
-                type="defaultSemiBold"
-                style={[
-                  styles.visibilityText,
-                  { color: site.public ? tagColorFor('public').text : themeColors.text },
-                ]}>
-                {site.public ? t('sites.public') : t('sites.private')}
-              </ThemedText>
-            </>
-          )}
+          <IconSymbol name="pencil" size={18} color={themeColors.secondaryControl} />
+          <ThemedText
+            type="defaultSemiBold"
+            style={[styles.editButtonText, { color: themeColors.secondaryControl }]}>
+            {t('sites.edit')}
+          </ThemedText>
         </Pressable>
       </View>
-
-      {visibilityError ? <BodyNotice message={visibilityError} variant="error" /> : null}
-
-      <Pressable
-        accessibilityRole="button"
-        onPress={copyUrl}
-        style={({ pressed }) => [styles.urlButton, { opacity: pressed ? 0.7 : 1 }]}>
-        <ThemedText style={[styles.urlText, { color: themeColors.secondaryControl }]}>
-          {site.url}
-        </ThemedText>
-        <IconSymbol size={18} name="doc.on.doc" color={themeColors.secondaryControl} />
-      </Pressable>
-
-      <View style={styles.tagList}>
-        {site.tags.map((tag) => (
-          <TagPill key={tag} tag={tag} />
-        ))}
-      </View>
-    </Pressable>
+    </Swipeable>
   );
 }
 
@@ -353,6 +515,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  headerIconButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
   },
   siteList: {
     gap: 16,
@@ -425,6 +594,20 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 16,
   },
+  deleteAction: {
+    width: 104,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 8,
+    backgroundColor: '#c62828',
+    marginLeft: 10,
+  },
+  deleteActionText: {
+    color: '#ffffff',
+    fontSize: 12,
+    lineHeight: 16,
+  },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -447,6 +630,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
+  editButton: {
+    minHeight: 40,
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  editButtonText: {
+    textAlign: 'center',
+  },
   visibilityPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -468,6 +666,24 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
+  },
+  addTagPill: {
+    minHeight: 26,
+    minWidth: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  tagInput: {
+    minWidth: 72,
+    maxWidth: 140,
+    padding: 0,
+    fontSize: 12,
+    lineHeight: 16,
   },
   tagText: {
     fontSize: 12,
