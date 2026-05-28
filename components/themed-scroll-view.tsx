@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from 'react';
+import { forwardRef, type PropsWithChildren } from 'react';
 import { ScrollView, StyleSheet, type ScrollViewProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -7,16 +7,16 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 
 type Props = PropsWithChildren<Pick<ScrollViewProps, 'contentContainerStyle' | 'keyboardShouldPersistTaps'>>;
 
-export default function ThemedScrollView({
-  children,
-  contentContainerStyle,
-  keyboardShouldPersistTaps,
-}: Props) {
+const ThemedScrollView = forwardRef<ScrollView, Props>(function ThemedScrollView(
+  { children, contentContainerStyle, keyboardShouldPersistTaps },
+  ref
+) {
   const backgroundColor = useThemeColor({}, 'background');
   const insets = useSafeAreaInsets();
 
   return (
     <ScrollView
+      ref={ref}
       keyboardShouldPersistTaps={keyboardShouldPersistTaps}
       contentContainerStyle={contentContainerStyle}
       style={{ backgroundColor, flex: 1 }}
@@ -24,7 +24,9 @@ export default function ThemedScrollView({
       <ThemedView style={[styles.content, { paddingTop: insets.top + 32 }]}>{children}</ThemedView>
     </ScrollView>
   );
-}
+});
+
+export default ThemedScrollView;
 
 const styles = StyleSheet.create({
   content: {

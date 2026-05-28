@@ -1,7 +1,17 @@
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Easing, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  Easing,
+  Keyboard,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 
 import { useAuth } from '@/auth/auth-context';
@@ -25,9 +35,39 @@ export default function SitesScreen() {
   const themeColors = Colors[colorScheme];
   const { error, isLoading, reloadSites, sites } = useSites(email);
   const router = useRouter();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const isCreateFormFocusedRef = useRef(false);
+  const [keyboardBottomInset, setKeyboardBottomInset] = useState(0);
+
+  const scrollCreateFormIntoView = useCallback(() => {
+    requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    });
+  }, []);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', (event) => {
+      setKeyboardBottomInset(event.endCoordinates.height);
+
+      if (isCreateFormFocusedRef.current) {
+        scrollCreateFormIntoView();
+      }
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardBottomInset(0);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [scrollCreateFormIntoView]);
 
   return (
-    <ThemedScrollView keyboardShouldPersistTaps="handled">
+    <ThemedScrollView
+      ref={scrollViewRef}
+      contentContainerStyle={{ paddingBottom: keyboardBottomInset }}
+      keyboardShouldPersistTaps="handled">
       <ThemedView style={styles.container}>
         <ThemedView style={styles.titleContainer}>
           <ThemedText type="title">{t('screens.sites.heading')}</ThemedText>
@@ -61,6 +101,13 @@ export default function SitesScreen() {
         )}
 
         <CreateSiteForm
+          onInputBlur={() => {
+            isCreateFormFocusedRef.current = false;
+          }}
+          onInputFocus={() => {
+            isCreateFormFocusedRef.current = true;
+            scrollCreateFormIntoView();
+          }}
           onCreated={async (site) => {
             await reloadSites();
             router.push({ pathname: '/editor', params: { sitePath: site.path } });
@@ -134,7 +181,15 @@ function RefreshSitesButton({
   );
 }
 
-function CreateSiteForm({ onCreated }: { onCreated: (site: Site) => void | Promise<void> }) {
+function CreateSiteForm({
+  onCreated,
+  onInputBlur,
+  onInputFocus,
+}: {
+  onCreated: (site: Site) => void | Promise<void>;
+  onInputBlur: () => void;
+  onInputFocus: () => void;
+}) {
   const colorScheme = useColorScheme() ?? 'light';
   const themeColors = Colors[colorScheme];
   const { t } = useTranslation();
@@ -195,7 +250,9 @@ function CreateSiteForm({ onCreated }: { onCreated: (site: Site) => void | Promi
       <TextInput
         autoCapitalize="words"
         autoCorrect={false}
+        onBlur={onInputBlur}
         onChangeText={handleNameChange}
+        onFocus={onInputFocus}
         placeholder={t('sites.namePlaceholder')}
         placeholderTextColor={themeColors.icon}
         style={[
@@ -226,7 +283,9 @@ function CreateSiteForm({ onCreated }: { onCreated: (site: Site) => void | Promi
           <TextInput
             autoCapitalize="none"
             autoCorrect={false}
+            onBlur={onInputBlur}
             onChangeText={handlePathChange}
+            onFocus={onInputFocus}
             placeholder={t('sites.pathPlaceholder')}
             placeholderTextColor={themeColors.icon}
             style={[styles.urlPathInput, { color: themeColors.text }]}
