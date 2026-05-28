@@ -55,13 +55,11 @@ export function RichTextEditorContent({
   onHtmlChange,
   onSync,
 }: RichTextEditorContentProps) {
-  const [isToolbarHidden, setIsToolbarHidden] = useState(false);
   const editorInputRef = useRef<HTMLDivElement>(null);
-  const lastScrollTopRef = useRef(0);
   const resolvedKeyboardInset = useViewportKeyboardInset(keyboardInset);
   const isKeyboardVisible = resolvedKeyboardInset > 0;
   const keyboardEditorLift = resolvedKeyboardInset > 0 ? 48 : 0;
-  const editorBottomPadding = 64 + resolvedKeyboardInset;
+  const editorBottomPadding = 88 + resolvedKeyboardInset;
   const editorTopPadding = keyboardEditorLift;
   useKeepSelectionVisible(editorInputRef, editorBottomPadding, isKeyboardVisible);
 
@@ -87,22 +85,6 @@ export function RichTextEditorContent({
     [initialHtml]
   );
 
-  const showToolbar = useCallback(() => {
-    setIsToolbarHidden(false);
-  }, []);
-
-  const handleEditorScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    const scrollTop = event.currentTarget.scrollTop;
-    const lastScrollTop = lastScrollTopRef.current;
-    const scrollDelta = scrollTop - lastScrollTop;
-
-    if (Math.abs(scrollDelta) > 8) {
-      setIsToolbarHidden(scrollDelta > 0 && scrollTop > 24);
-    }
-
-    lastScrollTopRef.current = scrollTop;
-  }, []);
-
   return (
     <div
       className={[
@@ -118,7 +100,6 @@ export function RichTextEditorContent({
         <Toolbar
           bottom={12 + resolvedKeyboardInset}
           isDirty={isDirty}
-          isHidden={isToolbarHidden}
           isSaving={isSaving}
           onSync={onSync}
         />
@@ -133,9 +114,6 @@ export function RichTextEditorContent({
                 scrollPaddingBottom: editorBottomPadding,
                 scrollPaddingTop: editorTopPadding,
               }}
-              onFocus={showToolbar}
-              onPointerDown={showToolbar}
-              onScroll={handleEditorScroll}
             />
           }
           placeholder={<div className="editor-placeholder">Start writing...</div>}
@@ -275,19 +253,17 @@ function useKeepSelectionVisible(
 function Toolbar({
   bottom,
   isDirty,
-  isHidden,
   isSaving,
   onSync,
 }: {
   bottom: number;
   isDirty: boolean;
-  isHidden: boolean;
   isSaving: boolean;
   onSync?: () => void | Promise<void>;
 }) {
   return (
     <div
-      className={isHidden ? 'toolbar toolbar-hidden' : 'toolbar'}
+      className="toolbar"
       style={{ bottom }}
       aria-label="Editor formatting">
       <div className="toolbar-tools-wrap">
@@ -778,12 +754,6 @@ const styles = `
       transform 180ms ease;
   }
 
-  .toolbar-hidden {
-    opacity: 0;
-    pointer-events: none;
-    transform: translate(-50%, calc(100% + 18px));
-  }
-
   .dark .toolbar {
     border-color: #343a3e;
     background: rgba(21, 23, 24, 0.94);
@@ -1009,8 +979,8 @@ const styles = `
     height: 100%;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 0 0 64px;
-    scroll-padding-bottom: 64px;
+    padding: 0 0 88px;
+    scroll-padding-bottom: 88px;
     outline: none;
     font-size: 16px;
     line-height: 1.55;
