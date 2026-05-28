@@ -175,6 +175,8 @@ const styles = StyleSheet.create({
   },
   urlText: {
     flexShrink: 1,
+    fontSize: 13,
+    lineHeight: 18,
   },
   visibilityPill: {
     flexDirection: 'row',

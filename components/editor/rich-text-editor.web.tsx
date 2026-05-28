@@ -1,5 +1,7 @@
 import { useEffect, useState, type ComponentType } from 'react';
-import { View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+
+import { Colors } from '@/constants/theme';
 
 import type { RichTextEditorContentProps } from './rich-text-editor-content';
 
@@ -49,7 +51,19 @@ export function RichTextEditor({
           onHtmlChange={onHtmlChange}
           onSync={onSync}
         />
-      ) : null}
+      ) : (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={isDark ? Colors.dark.control : Colors.light.control} />
+        </View>
+      )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
