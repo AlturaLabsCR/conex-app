@@ -349,7 +349,7 @@ function SiteCard({
         { opacity: isDeleting ? 0.6 : pressed ? 0.8 : 1 },
       ]}>
       {isDeleting ? (
-        <ThemedActivityIndicator />
+        <ThemedActivityIndicator size="small" />
       ) : (
         <>
           <IconSymbol name="trash" size={20} color="#ffffff" />
@@ -449,7 +449,7 @@ function SiteCard({
                 onPress={addTag}
                 style={{ opacity: canAddTag ? 1 : 0.45 }}>
                 {isUpdatingTags ? (
-                  <ThemedActivityIndicator />
+                  <ThemedActivityIndicator size="small" style={styles.tagSpinner} />
                 ) : (
                   <IconSymbol name="checkmark" size={16} color={themeColors.text} />
                 )}
@@ -520,13 +520,14 @@ function TagPill({
         },
       ]}>
       {isDeleting ? (
-        <ThemedActivityIndicator />
-      ) : isSelected ? (
-        <IconSymbol name="xmark" size={14} color={colors.text} />
+        <ThemedActivityIndicator size="small" style={styles.tagSpinner} />
       ) : (
-        <ThemedText type="defaultSemiBold" style={[styles.tagText, { color: colors.text }]}>
-          {tag}
-        </ThemedText>
+        <>
+          <ThemedText type="defaultSemiBold" style={[styles.tagText, { color: colors.text }]}>
+            {tag}
+          </ThemedText>
+          {isSelected ? <IconSymbol name="xmark" size={14} color={colors.text} /> : null}
+        </>
       )}
     </Pressable>
   );
@@ -728,8 +729,10 @@ const styles = StyleSheet.create({
   },
   tagPill: {
     minHeight: 26,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 5,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -751,6 +754,11 @@ const styles = StyleSheet.create({
     padding: 0,
     fontSize: 12,
     lineHeight: 16,
+  },
+  tagSpinner: {
+    width: 14,
+    height: 14,
+    transform: [{ scale: 0.65 }],
   },
   tagText: {
     fontSize: 12,
