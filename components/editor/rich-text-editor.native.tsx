@@ -33,6 +33,6 @@ export function RichTextEditor({
 }
 
 const domProps = {
-  useExpoDOMWebView: true,
+  useExpoDOMWebView: false,
   style: StyleSheet.absoluteFill,
 };

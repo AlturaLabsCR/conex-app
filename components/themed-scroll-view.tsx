@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 720,
     alignSelf: 'center',
-    padding: 32,
+    padding: 14,
     gap: 16,
     overflow: 'hidden',
   },

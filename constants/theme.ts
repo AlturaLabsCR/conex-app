@@ -12,7 +12,7 @@ export const Colors = {
   light: {
     text: '#11181C',
     background: '#fff',
-    border: '#A7B0B7',
+    border: '#D5DCE1',
     control: '#0a7ea4',
     controlText: '#fff',
     destructive: '#B42318',
@@ -25,7 +25,7 @@ export const Colors = {
   dark: {
     text: '#ECEDEE',
     background: '#151718',
-    border: '#5F686E',
+    border: '#343A3E',
     control: '#2f95dc',
     controlText: '#fff',
     destructive: '#F97066',
