@@ -23,6 +23,7 @@ const MAPPING = {
   'eye.slash': 'visibility-off',
   plus: 'add',
   checkmark: 'check',
+  xmark: 'close',
   'arrow.clockwise': 'sync',
   trash: 'delete',
   'chevron.left.forwardslash.chevron.right': 'code',

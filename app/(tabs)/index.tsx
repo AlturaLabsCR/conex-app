@@ -225,6 +225,7 @@ function SiteCard({
   const [isUpdatingTags, setIsUpdatingTags] = useState(false);
   const [isUpdatingVisibility, setIsUpdatingVisibility] = useState(false);
   const [newTag, setNewTag] = useState('');
+  const [selectedTag, setSelectedTag] = useState('');
 
   const trimmedNewTag = newTag.trim();
   const canAddTag =
@@ -271,6 +272,33 @@ function SiteCard({
       await siteRepository.updateSiteTags(site.path, [...site.tags, trimmedNewTag]);
       setNewTag('');
       setIsAddingTag(false);
+      await onTagsChange();
+    } catch (error) {
+      setSiteError(error instanceof Error ? error.message : t('sites.tagError'));
+    } finally {
+      setIsUpdatingTags(false);
+    }
+  }
+
+  async function handleTagPress(tag: string) {
+    if (isUpdatingTags) {
+      return;
+    }
+
+    if (selectedTag !== tag) {
+      setSelectedTag(tag);
+      return;
+    }
+
+    setSiteError('');
+    setIsUpdatingTags(true);
+
+    try {
+      await siteRepository.updateSiteTags(
+        site.path,
+        site.tags.filter((siteTag) => siteTag !== tag)
+      );
+      setSelectedTag('');
       await onTagsChange();
     } catch (error) {
       setSiteError(error instanceof Error ? error.message : t('sites.tagError'));
@@ -394,7 +422,13 @@ function SiteCard({
 
         <View style={styles.tagList}>
           {site.tags.map((tag) => (
-            <TagPill key={tag} tag={tag} />
+            <TagPill
+              key={tag}
+              isDeleting={isUpdatingTags && selectedTag === tag}
+              isSelected={selectedTag === tag}
+              tag={tag}
+              onPress={handleTagPress}
+            />
           ))}
           {isAddingTag ? (
             <View style={[styles.addTagPill, { backgroundColor: themeColors.border }]}>
@@ -456,15 +490,45 @@ function SiteCard({
   );
 }
 
-function TagPill({ tag }: { tag: string }) {
+function TagPill({
+  isDeleting,
+  isSelected,
+  onPress,
+  tag,
+}: {
+  isDeleting: boolean;
+  isSelected: boolean;
+  onPress: (tag: string) => void | Promise<void>;
+  tag: string;
+}) {
   const colors = tagColorFor(tag);
+  const { t } = useTranslation();
 
   return (
-    <View style={[styles.tagPill, { backgroundColor: colors.background }]}>
-      <ThemedText type="defaultSemiBold" style={[styles.tagText, { color: colors.text }]}>
-        {tag}
-      </ThemedText>
-    </View>
+    <Pressable
+      accessibilityLabel={isSelected ? t('sites.deleteTag') : tag}
+      accessibilityRole="button"
+      onPress={(event) => {
+        event.stopPropagation();
+        void onPress(tag);
+      }}
+      style={[
+        styles.tagPill,
+        {
+          backgroundColor: colors.background,
+          minWidth: isSelected ? 32 : undefined,
+        },
+      ]}>
+      {isDeleting ? (
+        <ThemedActivityIndicator />
+      ) : isSelected ? (
+        <IconSymbol name="xmark" size={14} color={colors.text} />
+      ) : (
+        <ThemedText type="defaultSemiBold" style={[styles.tagText, { color: colors.text }]}>
+          {tag}
+        </ThemedText>
+      )}
+    </Pressable>
   );
 }
 
@@ -663,6 +727,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   tagPill: {
+    minHeight: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
