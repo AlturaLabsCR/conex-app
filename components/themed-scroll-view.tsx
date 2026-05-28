@@ -5,10 +5,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
-type Props = PropsWithChildren<Pick<ScrollViewProps, 'keyboardShouldPersistTaps'>>;
+type Props = PropsWithChildren<Pick<ScrollViewProps, 'contentContainerStyle' | 'keyboardShouldPersistTaps'>>;
 
 export default function ThemedScrollView({
   children,
+  contentContainerStyle,
   keyboardShouldPersistTaps,
 }: Props) {
   const backgroundColor = useThemeColor({}, 'background');
@@ -17,6 +18,7 @@ export default function ThemedScrollView({
   return (
     <ScrollView
       keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+      contentContainerStyle={contentContainerStyle}
       style={{ backgroundColor, flex: 1 }}
       scrollEventThrottle={16}>
       <ThemedView style={[styles.content, { paddingTop: insets.top + 32 }]}>{children}</ThemedView>

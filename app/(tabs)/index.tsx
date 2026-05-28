@@ -1,12 +1,15 @@
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import ThemedScrollView from '@/components/themed-scroll-view';
+import { BodyNotice } from '@/components/body-notice';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
+import { siteRepository } from '@/features/sites/site-repository';
 import { useSites } from '@/features/sites/use-sites';
 import type { Site } from '@/features/sites/types';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -14,38 +17,212 @@ import { useTranslation } from '@/i18n';
 
 export default function SitesScreen() {
   const { t } = useTranslation();
-  const { sites } = useSites();
+  const { error, isLoading, reloadSites, sites } = useSites();
+  const colorScheme = useColorScheme() ?? 'light';
+  const themeColors = Colors[colorScheme];
   const router = useRouter();
 
   return (
-    <ThemedScrollView>
+    <ThemedScrollView keyboardShouldPersistTaps="handled">
       <ThemedView style={styles.container}>
         <ThemedView style={styles.titleContainer}>
           <ThemedText type="title">{t('screens.sites.heading')}</ThemedText>
         </ThemedView>
 
-        <ThemedView style={styles.siteList}>
-          {sites.map((site) => (
-            <SiteCard
-              key={site.path}
-              site={site}
-              onOpen={() => router.push({ pathname: '/editor', params: { sitePath: site.path } })}
-            />
-          ))}
-        </ThemedView>
+        {isLoading ? (
+          <ActivityIndicator color={themeColors.control} />
+        ) : error ? (
+          <BodyNotice message={error} variant="error" />
+        ) : (
+          <ThemedView style={styles.siteList}>
+            {sites.map((site) => (
+              <SiteCard
+                key={site.path}
+                onVisibilityChange={reloadSites}
+                site={site}
+                onOpen={() =>
+                  router.push({ pathname: '/editor', params: { sitePath: site.path } })
+                }
+              />
+            ))}
+          </ThemedView>
+        )}
+
+        <CreateSiteForm
+          onCreated={async (site) => {
+            await reloadSites();
+            router.push({ pathname: '/editor', params: { sitePath: site.path } });
+          }}
+        />
       </ThemedView>
     </ThemedScrollView>
   );
 }
 
-function SiteCard({ onOpen, site }: { onOpen: () => void; site: Site }) {
+function CreateSiteForm({ onCreated }: { onCreated: (site: Site) => void | Promise<void> }) {
   const colorScheme = useColorScheme() ?? 'light';
   const themeColors = Colors[colorScheme];
   const { t } = useTranslation();
+  const [createError, setCreateError] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [isPathManual, setIsPathManual] = useState(false);
+  const [name, setName] = useState('');
+  const [path, setPath] = useState('');
+
+  const canCreate = Boolean(name.trim() && isValidSitePath(path)) && !isCreating;
+
+  function handleNameChange(nextName: string) {
+    setName(nextName);
+
+    if (!isPathManual) {
+      setPath(sitePathFromName(nextName));
+    }
+  }
+
+  function handlePathChange(nextPath: string) {
+    setIsPathManual(true);
+    setPath(normalizeSitePath(nextPath));
+  }
+
+  async function handleCreate() {
+    if (!canCreate) {
+      return;
+    }
+
+    setCreateError('');
+    setIsCreating(true);
+
+    try {
+      const site = await siteRepository.createSite({
+        name: name.trim(),
+        path: path.trim(),
+      });
+
+      setIsPathManual(false);
+      setName('');
+      setPath('');
+      await onCreated(site);
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : t('sites.createError'));
+    } finally {
+      setIsCreating(false);
+    }
+  }
+
+  return (
+    <ThemedView
+      style={[
+        styles.createPanel,
+        { backgroundColor: themeColors.cardBackground, borderColor: themeColors.border },
+      ]}>
+      <ThemedText style={styles.createHeading}>{t('sites.createHeading')}</ThemedText>
+      {createError ? <BodyNotice message={createError} variant="error" /> : null}
+      <TextInput
+        autoCapitalize="words"
+        autoCorrect={false}
+        onChangeText={handleNameChange}
+        placeholder={t('sites.namePlaceholder')}
+        placeholderTextColor={themeColors.icon}
+        style={[
+          styles.input,
+          {
+            backgroundColor: themeColors.background,
+            borderColor: themeColors.border,
+            color: themeColors.text,
+          },
+        ]}
+        value={name}
+      />
+      <View style={styles.publicUrlGroup}>
+        <ThemedText style={[styles.publicUrlLabel, { color: themeColors.secondaryControl }]}>
+          {t('sites.publicUrlLabel')}
+        </ThemedText>
+        <View
+          style={[
+            styles.urlInput,
+            {
+              backgroundColor: themeColors.background,
+              borderColor: themeColors.border,
+            },
+          ]}>
+          <ThemedText style={[styles.urlHost, { color: themeColors.secondaryControl }]}>
+            https://conex.co.cr/
+          </ThemedText>
+          <TextInput
+            autoCapitalize="none"
+            autoCorrect={false}
+            onChangeText={handlePathChange}
+            placeholder={t('sites.pathPlaceholder')}
+            placeholderTextColor={themeColors.icon}
+            style={[styles.urlPathInput, { color: themeColors.text }]}
+            value={path}
+          />
+        </View>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        disabled={!canCreate}
+        onPress={handleCreate}
+        style={({ pressed }) => [
+          styles.createButton,
+          {
+            backgroundColor: themeColors.control,
+            opacity: !canCreate ? 0.5 : pressed ? 0.8 : 1,
+          },
+        ]}>
+        {isCreating ? (
+          <ActivityIndicator color={themeColors.controlText} />
+        ) : (
+          <>
+            <IconSymbol size={18} name="plus" color={themeColors.controlText} />
+            <ThemedText type="defaultSemiBold" style={{ color: themeColors.controlText }}>
+              {t('sites.create')}
+            </ThemedText>
+          </>
+        )}
+      </Pressable>
+    </ThemedView>
+  );
+}
+
+function SiteCard({
+  onOpen,
+  onVisibilityChange,
+  site,
+}: {
+  onOpen: () => void;
+  onVisibilityChange: () => void | Promise<void>;
+  site: Site;
+}) {
+  const colorScheme = useColorScheme() ?? 'light';
+  const themeColors = Colors[colorScheme];
+  const { t } = useTranslation();
+  const [visibilityError, setVisibilityError] = useState('');
+  const [isUpdatingVisibility, setIsUpdatingVisibility] = useState(false);
 
   async function copyUrl(event: { stopPropagation?: () => void }) {
     event.stopPropagation?.();
     await Clipboard.setStringAsync(site.url);
+  }
+
+  async function updateVisibility(event: { stopPropagation?: () => void }) {
+    event.stopPropagation?.();
+
+    if (isUpdatingVisibility) {
+      return;
+    }
+
+    setVisibilityError('');
+    setIsUpdatingVisibility(true);
+
+    try {
+      await siteRepository.updateSiteVisibility(site.path, !site.public);
+      await onVisibilityChange();
+    } catch (error) {
+      setVisibilityError(error instanceof Error ? error.message : t('sites.visibilityError'));
+    } finally {
+      setIsUpdatingVisibility(false);
+    }
   }
 
   return (
@@ -64,28 +241,43 @@ function SiteCard({ onOpen, site }: { onOpen: () => void; site: Site }) {
         <View style={styles.siteIdentity}>
           <ThemedText type="subtitle">{site.name}</ThemedText>
         </View>
-        <View
+        <Pressable
+          accessibilityRole="button"
+          disabled={isUpdatingVisibility}
+          onPress={updateVisibility}
           style={[
             styles.visibilityPill,
             {
               backgroundColor: site.public ? tagColorFor('public').background : themeColors.border,
+              opacity: isUpdatingVisibility ? 0.6 : 1,
             },
           ]}>
-          <IconSymbol
-            size={14}
-            name={site.public ? 'eye' : 'eye.slash'}
-            color={site.public ? tagColorFor('public').text : themeColors.text}
-          />
-          <ThemedText
-            type="defaultSemiBold"
-            style={[
-              styles.visibilityText,
-              { color: site.public ? tagColorFor('public').text : themeColors.text },
-            ]}>
-            {site.public ? t('sites.public') : t('sites.private')}
-          </ThemedText>
-        </View>
+          {isUpdatingVisibility ? (
+            <ActivityIndicator
+              color={site.public ? tagColorFor('public').text : themeColors.text}
+              size="small"
+            />
+          ) : (
+            <>
+              <IconSymbol
+                size={14}
+                name={site.public ? 'eye' : 'eye.slash'}
+                color={site.public ? tagColorFor('public').text : themeColors.text}
+              />
+              <ThemedText
+                type="defaultSemiBold"
+                style={[
+                  styles.visibilityText,
+                  { color: site.public ? tagColorFor('public').text : themeColors.text },
+                ]}>
+                {site.public ? t('sites.public') : t('sites.private')}
+              </ThemedText>
+            </>
+          )}
+        </Pressable>
       </View>
+
+      {visibilityError ? <BodyNotice message={visibilityError} variant="error" /> : null}
 
       <Pressable
         accessibilityRole="button"
@@ -116,6 +308,25 @@ function TagPill({ tag }: { tag: string }) {
       </ThemedText>
     </View>
   );
+}
+
+function sitePathFromName(name: string) {
+  return normalizeSitePath(name);
+}
+
+function normalizeSitePath(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\/\\]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function isValidSitePath(path: string) {
+  return /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(path) && path.length >= 3;
 }
 
 function normalizeTag(tag: string) {
@@ -149,6 +360,67 @@ const styles = StyleSheet.create({
   },
   siteList: {
     gap: 16,
+  },
+  createPanel: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 16,
+    gap: 12,
+  },
+  createHeading: {
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: '700',
+  },
+  input: {
+    width: '100%',
+    minHeight: 44,
+    borderWidth: 1,
+    borderRadius: 8,
+    fontSize: 16,
+    lineHeight: 22,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  publicUrlGroup: {
+    gap: 6,
+  },
+  publicUrlLabel: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  urlInput: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingLeft: 12,
+    paddingRight: 4,
+  },
+  urlHost: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  urlPathInput: {
+    flex: 1,
+    minWidth: 72,
+    minHeight: 42,
+    fontSize: 15,
+    lineHeight: 22,
+    paddingHorizontal: 0,
+    paddingVertical: 9,
+  },
+  createButton: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   card: {
     width: '100%',

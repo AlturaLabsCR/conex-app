@@ -1,25 +1,52 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-import { localSiteRepository } from './site-repository';
+import { siteRepository } from './site-repository';
 import type { Site } from './types';
 
 export function useSites() {
+  const [error, setError] = useState('');
   const [sites, setSites] = useState<Site[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const loadSites = useCallback(async () => {
+    setIsLoading(true);
+
+    try {
+      const nextSites = await siteRepository.listSites();
+
+      setSites(nextSites);
+      setError('');
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Unable to load sites.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
 
-    async function loadSites() {
-      const nextSites = await localSiteRepository.listSites();
+    async function loadMountedSites() {
+      setIsLoading(true);
 
-      if (isMounted) {
-        setSites(nextSites);
-        setIsLoading(false);
+      try {
+        const nextSites = await siteRepository.listSites();
+        if (isMounted) {
+          setSites(nextSites);
+          setError('');
+        }
+      } catch (loadError) {
+        if (isMounted) {
+          setError(loadError instanceof Error ? loadError.message : 'Unable to load sites.');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     }
 
-    loadSites();
+    loadMountedSites();
 
     return () => {
       isMounted = false;
@@ -27,8 +54,9 @@ export function useSites() {
   }, []);
 
   return {
+    reloadSites: loadSites,
+    error,
     isLoading,
     sites,
   };
 }
-

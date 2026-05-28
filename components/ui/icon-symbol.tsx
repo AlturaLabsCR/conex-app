@@ -21,6 +21,7 @@ const MAPPING = {
   'doc.on.doc': 'content-copy',
   eye: 'visibility',
   'eye.slash': 'visibility-off',
+  plus: 'add',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
 } as IconMapping;

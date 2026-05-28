@@ -5,10 +5,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // eslint-disable-next-line import/no-unresolved -- Metro resolves the .web/.native editor files.
 import { RichTextEditor } from '@/components/editor/rich-text-editor';
+import { BodyNotice } from '@/components/body-notice';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
-import { localSiteRepository } from '@/features/sites/site-repository';
+import { siteRepository } from '@/features/sites/site-repository';
 import type { SiteWithContent } from '@/features/sites/types';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTranslation } from '@/i18n';
@@ -22,6 +23,7 @@ export default function EditorScreen() {
   const [site, setSite] = useState<SiteWithContent | null>(null);
   const [draftHtml, setDraftHtml] = useState('');
   const [savedHtml, setSavedHtml] = useState('');
+  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -38,20 +40,33 @@ export default function EditorScreen() {
 
     async function loadSite() {
       setIsLoading(true);
+      setError('');
 
-      const sites = await localSiteRepository.listSites();
-      const fallbackPath = sites[0]?.path;
-      const nextSite = selectedPath
-        ? await localSiteRepository.getSite(selectedPath)
-        : fallbackPath
-          ? await localSiteRepository.getSite(fallbackPath)
-          : null;
+      try {
+        const sites = await siteRepository.listSites();
+        const fallbackPath = sites[0]?.path;
+        const nextSite = selectedPath
+          ? await siteRepository.getSite(selectedPath)
+          : fallbackPath
+            ? await siteRepository.getSite(fallbackPath)
+            : null;
 
-      if (isMounted) {
-        setSite(nextSite);
-        setDraftHtml(nextSite?.contentHtml ?? '');
-        setSavedHtml(nextSite?.contentHtml ?? '');
-        setIsLoading(false);
+        if (isMounted) {
+          setSite(nextSite);
+          setDraftHtml(nextSite?.contentHtml ?? '');
+          setSavedHtml(nextSite?.contentHtml ?? '');
+        }
+      } catch (loadError) {
+        if (isMounted) {
+          setError(loadError instanceof Error ? loadError.message : 'Unable to load site.');
+          setSite(null);
+          setDraftHtml('');
+          setSavedHtml('');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     }
 
@@ -70,14 +85,20 @@ export default function EditorScreen() {
     }
 
     setIsSaving(true);
-    const syncedSite = await localSiteRepository.saveSiteContent(site.path, draftHtml);
+    setError('');
 
-    if (syncedSite) {
-      setSite(syncedSite);
-      setSavedHtml(syncedSite.contentHtml);
+    try {
+      const syncedSite = await siteRepository.saveSiteContent(site.path, draftHtml);
+
+      if (syncedSite) {
+        setSite(syncedSite);
+        setSavedHtml(syncedSite.contentHtml);
+      }
+    } catch (syncError) {
+      setError(syncError instanceof Error ? syncError.message : 'Unable to sync changes.');
+    } finally {
+      setIsSaving(false);
     }
-
-    setIsSaving(false);
   }, [draftHtml, isDirty, site]);
 
   return (
@@ -87,11 +108,16 @@ export default function EditorScreen() {
           <View style={styles.stateContainer}>
             <ActivityIndicator color={themeColors.text} size="large" />
           </View>
+        ) : error && !site ? (
+          <View style={styles.stateContainer}>
+            <BodyNotice message={error} variant="error" />
+          </View>
         ) : site ? (
           <>
             <View style={styles.titleContainer}>
               <ThemedText type="title">{site.name}</ThemedText>
             </View>
+            {error ? <BodyNotice message={error} variant="error" /> : null}
 
             <View style={styles.editorFrame}>
               <RichTextEditor

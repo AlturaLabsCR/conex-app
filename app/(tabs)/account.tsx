@@ -7,8 +7,10 @@ import {
   View,
 } from 'react-native';
 
+import type { AccountResponse } from '@/api/conex-api';
 import { useAuth } from '@/auth/auth-context';
 import { BodyNotice } from '@/components/body-notice';
+import { ExternalLink } from '@/components/external-link';
 import ThemedScrollView from '@/components/themed-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -17,7 +19,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { TranslationKey, useTranslation } from '@/i18n';
 
 type BillingPeriod = {
-  unit: 'day' | 'week' | 'month' | 'year';
+  unit: string;
   count: number;
 };
 
@@ -27,7 +29,7 @@ type Money = {
 };
 
 type AccountSubscriptionResponse = {
-  status: 'active' | 'past_due' | 'canceled';
+  status: string;
   dueDate: string | null;
   plan: {
     id: string;
@@ -38,28 +40,23 @@ type AccountSubscriptionResponse = {
   };
 };
 
-const ACCOUNT_SUBSCRIPTION: AccountSubscriptionResponse = {
-  status: 'active',
-  dueDate: '2026-06-27',
-  plan: {
-    id: 'pro',
-    name: 'Pro Tier',
-    price: {
-      amount: 20,
-      currency: 'USD',
-    },
-    billingPeriod: {
-      unit: 'month',
-      count: 1,
-    },
-    supportsRenewal: true,
-  },
-};
-
 export default function AccountScreen() {
-  const { email, isLoading, login, logout } = useAuth();
+  const {
+    account,
+    clearError,
+    confirmEmailChange,
+    deleteAccount,
+    email,
+    error,
+    isLoading,
+    login,
+    logout,
+    requestEmailChange,
+    verifyLogin,
+  } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
   const { locale, t } = useTranslation();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCodeStep, setIsCodeStep] = useState(false);
   const [isChangingEmail, setIsChangingEmail] = useState(false);
   const [emailInput, setEmailInput] = useState('');
@@ -67,29 +64,41 @@ export default function AccountScreen() {
 
   const themeColors = Colors[colorScheme];
   const isLoggedIn = Boolean(email);
-  const renewalUntil = ACCOUNT_SUBSCRIPTION.plan.supportsRenewal
+  const accountSubscription = account ? subscriptionFromApi(account.subscription) : null;
+  const renewalUntil = accountSubscription?.plan.supportsRenewal
     ? formatRenewalUntilDate(
-        ACCOUNT_SUBSCRIPTION.dueDate,
-        ACCOUNT_SUBSCRIPTION.plan.billingPeriod,
+        accountSubscription.dueDate,
+        accountSubscription.plan.billingPeriod,
         locale
       )
     : null;
-  const dueDate = ACCOUNT_SUBSCRIPTION.dueDate
-    ? formatDate(ACCOUNT_SUBSCRIPTION.dueDate, locale)
+  const dueDate = accountSubscription?.dueDate
+    ? formatDate(accountSubscription.dueDate, locale)
     : t('account.noDueDate');
-  const planPrice = formatRecurringPrice(
-    ACCOUNT_SUBSCRIPTION.plan.price,
-    ACCOUNT_SUBSCRIPTION.plan.billingPeriod,
-    locale,
-    t
-  );
+  const planPrice = accountSubscription
+    ? formatRecurringPrice(accountSubscription.plan.price, accountSubscription.plan.billingPeriod, locale, t)
+    : '';
 
-  function handleLogin() {
+  async function handleLogin() {
     if (!emailInput) {
       return;
     }
 
-    setIsCodeStep(true);
+    setIsSubmitting(true);
+    clearError();
+
+    try {
+      if (isChangingEmail) {
+        await requestEmailChange(emailInput);
+      } else {
+        await login(emailInput);
+      }
+      setIsCodeStep(true);
+    } catch {
+      // Error message is stored by AuthProvider.
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   async function handleVerify() {
@@ -97,10 +106,23 @@ export default function AccountScreen() {
       return;
     }
 
-    await login(emailInput);
-    setIsChangingEmail(false);
-    setIsCodeStep(false);
-    setCodeInput('');
+    setIsSubmitting(true);
+    clearError();
+
+    try {
+      if (isChangingEmail) {
+        await confirmEmailChange(codeInput);
+      } else {
+        await verifyLogin(emailInput, codeInput);
+      }
+      setIsChangingEmail(false);
+      setIsCodeStep(false);
+      setCodeInput('');
+    } catch {
+      // Error message is stored by AuthProvider.
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function handleChangeEmail() {
@@ -118,17 +140,39 @@ export default function AccountScreen() {
     setIsChangingEmail(false);
   }
 
+  async function handleDeleteAccount() {
+    setIsSubmitting(true);
+    clearError();
+
+    try {
+      await deleteAccount();
+      setEmailInput('');
+      setCodeInput('');
+      setIsCodeStep(false);
+      setIsChangingEmail(false);
+    } catch {
+      // Error message is stored by AuthProvider.
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
-    <ThemedScrollView keyboardShouldPersistTaps="handled">
+    <ThemedScrollView
+      contentContainerStyle={!isLoggedIn || isChangingEmail ? styles.loginScrollContent : undefined}
+      keyboardShouldPersistTaps="handled">
       <ThemedView style={styles.container}>
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="title">{t('screens.account.heading')}</ThemedText>
-        </ThemedView>
+        {isLoggedIn && !isChangingEmail ? (
+          <ThemedView style={styles.titleContainer}>
+            <ThemedText type="title">{t('screens.account.heading')}</ThemedText>
+          </ThemedView>
+        ) : null}
 
         {isLoading ? (
           <ActivityIndicator color={themeColors.control} />
         ) : isLoggedIn && !isChangingEmail ? (
           <ThemedView style={styles.content}>
+            {error ? <BodyNotice message={error} variant="error" /> : null}
             <ThemedView
               style={[
                 styles.planCard,
@@ -143,8 +187,13 @@ export default function AccountScreen() {
                 </ThemedText>
               </View>
               <View style={styles.planActions}>
-                <AccountButton label={t('account.changeEmail')} onPress={handleChangeEmail} />
                 <AccountButton
+                  disabled={isSubmitting}
+                  label={t('account.changeEmail')}
+                  onPress={handleChangeEmail}
+                />
+                <AccountButton
+                  disabled={isSubmitting}
                   label={t('account.logout')}
                   onPress={handleLogout}
                   tone="secondary"
@@ -157,7 +206,7 @@ export default function AccountScreen() {
                 { backgroundColor: themeColors.cardBackground, borderColor: themeColors.border },
               ]}>
               <View style={styles.planHeader}>
-                <ThemedText style={styles.planName}>{ACCOUNT_SUBSCRIPTION.plan.name}</ThemedText>
+                <ThemedText style={styles.planName}>{accountSubscription?.plan.name}</ThemedText>
                 <ThemedText type="subtitle" style={styles.planPrice}>
                   {planPrice}
                 </ThemedText>
@@ -168,8 +217,9 @@ export default function AccountScreen() {
                 </ThemedText>
               </View>
               <View style={styles.planActions}>
-                {ACCOUNT_SUBSCRIPTION.plan.supportsRenewal ? (
+                {accountSubscription?.plan.supportsRenewal ? (
                   <AccountButton
+                    disabled={isSubmitting}
                     label={
                       renewalUntil
                         ? t('account.renewUntil').replace('{{date}}', renewalUntil)
@@ -179,6 +229,7 @@ export default function AccountScreen() {
                   />
                 ) : null}
                 <AccountButton
+                  disabled={isSubmitting}
                   label={t('account.switchPlan')}
                   onPress={() => {}}
                   tone="secondary"
@@ -200,8 +251,9 @@ export default function AccountScreen() {
               />
               <View style={styles.planActions}>
                 <AccountButton
+                  disabled={isSubmitting}
                   label={t('account.deleteAccount')}
-                  onPress={() => {}}
+                  onPress={handleDeleteAccount}
                   tone="destructive"
                 />
               </View>
@@ -212,6 +264,12 @@ export default function AccountScreen() {
             <ThemedText type="title" style={styles.loginHeading}>
               {isChangingEmail ? t('account.changeEmail') : t('account.loginHeading')}
             </ThemedText>
+            {!isCodeStep ? (
+              <ThemedText style={[styles.loginNotice, { color: themeColors.secondaryControl }]}>
+                {t('account.confirmationEmailNotice')}
+              </ThemedText>
+            ) : null}
+            {error ? <BodyNotice message={error} variant="error" /> : null}
             {isCodeStep ? (
               <>
                 <BodyNotice
@@ -237,7 +295,7 @@ export default function AccountScreen() {
                   value={codeInput}
                 />
                 <AccountButton
-                  disabled={!codeInput}
+                  disabled={!codeInput || isSubmitting}
                   label={t('account.verify')}
                   onPress={handleVerify}
                 />
@@ -262,10 +320,24 @@ export default function AccountScreen() {
                   value={emailInput}
                 />
                 <AccountButton
-                  disabled={!emailInput}
+                  disabled={!emailInput || isSubmitting}
                   label={t('account.login')}
                   onPress={handleLogin}
                 />
+                <ThemedText style={[styles.legalText, { color: themeColors.secondaryControl }]}>
+                  {t('account.legalPrefix')}
+                  <ExternalLink href="https://conex.co.cr/tos" style={styles.legalLink}>
+                    {t('account.legalTerms')}
+                  </ExternalLink>
+                  {t('account.legalMiddle')}
+                  <ExternalLink href="https://conex.co.cr/privacy" style={styles.legalLink}>
+                    {t('account.legalPrivacy')}
+                  </ExternalLink>
+                  {t('account.legalSuffix')}
+                </ThemedText>
+                <ThemedText style={[styles.copyrightText, { color: themeColors.secondaryControl }]}>
+                  {t('account.copyright')}
+                </ThemedText>
               </>
             )}
           </ThemedView>
@@ -290,7 +362,7 @@ function addBillingPeriod(date: Date, billingPeriod: BillingPeriod) {
     date.setDate(date.getDate() + billingPeriod.count * 7);
   } else if (billingPeriod.unit === 'month') {
     date.setMonth(date.getMonth() + billingPeriod.count);
-  } else {
+  } else if (billingPeriod.unit === 'year') {
     date.setFullYear(date.getFullYear() + billingPeriod.count);
   }
 }
@@ -322,18 +394,40 @@ function formatRecurringPrice(
   )}`;
 }
 
-function periodShortName(unit: BillingPeriod['unit'], t: (key: TranslationKey) => string) {
+function periodShortName(unit: string, t: (key: TranslationKey) => string) {
+  if (!isBillingPeriodUnit(unit)) {
+    return unit;
+  }
+
   return t(`billing.periodShort.${unit}`);
 }
 
-function periodLongName(
-  unit: BillingPeriod['unit'],
-  count: number,
-  t: (key: TranslationKey) => string
-) {
+function periodLongName(unit: string, count: number, t: (key: TranslationKey) => string) {
+  if (!isBillingPeriodUnit(unit)) {
+    return unit;
+  }
+
   const plurality = count === 1 ? 'one' : 'other';
 
   return t(`billing.periodLong.${unit}.${plurality}`);
+}
+
+function isBillingPeriodUnit(unit: string): unit is 'day' | 'week' | 'month' | 'year' {
+  return unit === 'day' || unit === 'week' || unit === 'month' || unit === 'year';
+}
+
+function subscriptionFromApi(subscription: AccountResponse['subscription']): AccountSubscriptionResponse {
+  return {
+    status: subscription.status,
+    dueDate: subscription.due_date || null,
+    plan: {
+      id: subscription.plan.id,
+      name: subscription.plan.name,
+      price: subscription.plan.price,
+      billingPeriod: subscription.plan.billing_period,
+      supportsRenewal: subscription.plan.supports_renewal,
+    },
+  };
 }
 
 function formatDate(date: string | Date, locale: string) {
@@ -413,11 +507,15 @@ const styles = StyleSheet.create({
   loginFlow: {
     flex: 1,
     justifyContent: 'center',
-    minHeight: 360,
+    minHeight: 520,
     width: '100%',
+  },
+  loginScrollContent: {
+    flexGrow: 1,
   },
   loginHeading: {
     textAlign: 'center',
+    paddingBottom: 12,
   },
   input: {
     width: '100%',
@@ -476,5 +574,27 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     textAlign: 'center',
+  },
+  legalText: {
+    maxWidth: 420,
+    textAlign: 'center',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  loginNotice: {
+    maxWidth: 420,
+    textAlign: 'center',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  legalLink: {
+    color: '#0a7ea4',
+    fontWeight: '600',
+  },
+  copyrightText: {
+    marginTop: 8,
+    textAlign: 'center',
+    fontSize: 12,
+    lineHeight: 18,
   },
 });

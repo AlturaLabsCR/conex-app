@@ -1,65 +1,72 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as conexApi from '@/api/conex-api';
 
-import { LOCAL_SITES } from './local-sites';
 import type { Site, SiteWithContent } from './types';
 
-const CONTENT_KEY_PREFIX = 'conex.siteContentHtml.';
-
 export interface SiteRepository {
+  createSite(input: { name: string; path: string }): Promise<Site>;
   listSites(): Promise<Site[]>;
   getSite(path: string): Promise<SiteWithContent | null>;
   saveSiteContent(path: string, contentHtml: string): Promise<SiteWithContent | null>;
+  updateSiteVisibility(path: string, isPublic: boolean): Promise<void>;
 }
 
-function contentStorageKey(path: string) {
-  return `${CONTENT_KEY_PREFIX}${path}`;
-}
-
-async function readLocalSiteContent(site: SiteWithContent) {
-  const storedHtml = await AsyncStorage.getItem(contentStorageKey(site.path));
-
+function siteFromApi(site: conexApi.SiteResponse): Site {
   return {
-    ...site,
-    contentHtml: normalizeStoredContent(site, storedHtml ?? site.contentHtml),
+    path: site.path,
+    public: site.public,
+    name: site.name,
+    tags: site.tags,
+    url: site.url,
+    sub: site.sub,
   };
 }
 
-function normalizeStoredContent(site: SiteWithContent, contentHtml: string) {
-  const legacySeedHtml = `<h2>${site.name}</h2>${site.contentHtml}`;
-
-  if (contentHtml === legacySeedHtml) {
-    return site.contentHtml;
-  }
-
-  return contentHtml;
+function siteWithContentFromApi(site: conexApi.OwnedSiteResponse): SiteWithContent {
+  return {
+    ...siteFromApi(site),
+    contentHtml: site.html,
+  };
 }
 
-export const localSiteRepository: SiteRepository = {
+export const siteRepository: SiteRepository = {
+  async createSite({ name, path }) {
+    const site = await conexApi.createSite({
+      html: '<p></p>',
+      name,
+      path,
+      tags: [],
+    });
+
+    return siteFromApi(site);
+  },
+
   async listSites() {
-    return LOCAL_SITES.map(({ contentHtml: _contentHtml, ...site }) => site);
+    const sites = await conexApi.listSites();
+
+    return sites.map(siteFromApi);
   },
 
   async getSite(path) {
-    const site = LOCAL_SITES.find((item) => item.path === path);
+    try {
+      const site = await conexApi.getOwnedSite(path);
 
-    if (!site) {
-      return null;
+      return siteWithContentFromApi(site);
+    } catch (error) {
+      if (error instanceof conexApi.ConexApiError && error.status === 404) {
+        return null;
+      }
+
+      throw error;
     }
-
-    return readLocalSiteContent(site);
   },
 
   async saveSiteContent(path, contentHtml) {
-    const site = LOCAL_SITES.find((item) => item.path === path);
+    await conexApi.updateSite(path, { html: contentHtml });
 
-    if (!site) {
-      return null;
-    }
+    return siteRepository.getSite(path);
+  },
 
-    await AsyncStorage.setItem(contentStorageKey(path), contentHtml);
-    return {
-      ...site,
-      contentHtml,
-    };
+  async updateSiteVisibility(path, isPublic) {
+    await conexApi.updateSite(path, { public: isPublic });
   },
 };

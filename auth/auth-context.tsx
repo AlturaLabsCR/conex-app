@@ -1,35 +1,80 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-type AuthSession = {
-  email: string;
-};
+import {
+  clearStoredSession,
+  confirmEmailChange,
+  deleteAccount,
+  getAccount,
+  getOptionalStoredSession,
+  loginOrCreateAccount,
+  requestEmailChange,
+  verifyAuthenticationCode,
+  type AccountResponse,
+} from '@/api/conex-api';
 
 type AuthContextValue = {
+  account: AccountResponse | null;
   email: string;
+  error: string;
   isLoading: boolean;
+  clearError: () => void;
+  confirmEmailChange: (otp: string) => Promise<void>;
+  deleteAccount: () => Promise<void>;
   login: (email: string) => Promise<void>;
   logout: () => Promise<void>;
+  requestEmailChange: (newEmail: string) => Promise<void>;
+  verifyLogin: (email: string, otp: string) => Promise<void>;
 };
-
-const SESSION_STORAGE_KEY = 'conex.session';
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: PropsWithChildren) {
+  const [account, setAccount] = useState<AccountResponse | null>(null);
   const [email, setEmail] = useState('');
+  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+
+  const loadAccount = useCallback(async () => {
+    const nextAccount = await getAccount();
+
+    setAccount(nextAccount);
+    setEmail(nextAccount.email);
+  }, []);
+
+  const resetSession = useCallback(async () => {
+    await clearStoredSession();
+    setAccount(null);
+    setEmail('');
+  }, []);
+
+  const handleApiError = useCallback((apiError: unknown): never => {
+    setError(errorMessage(apiError));
+    throw apiError;
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
 
     async function loadSession() {
       try {
-        const storedSession = await AsyncStorage.getItem(SESSION_STORAGE_KEY);
-        const session = storedSession ? (JSON.parse(storedSession) as Partial<AuthSession>) : null;
+        const session = await getOptionalStoredSession();
 
-        if (isMounted && typeof session?.email === 'string') {
-          setEmail(session.email);
+        if (!session) {
+          return;
+        }
+
+        const nextAccount = await getAccount();
+
+        if (isMounted) {
+          setAccount(nextAccount);
+          setEmail(nextAccount.email);
+        }
+      } catch (loadError) {
+        if (isMounted) {
+          await clearStoredSession();
+          setAccount(null);
+          setEmail('');
+          setError(errorMessage(loadError));
         }
       } finally {
         if (isMounted) {
@@ -47,20 +92,61 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const value = useMemo<AuthContextValue>(
     () => ({
+      account,
       email,
+      error,
       isLoading,
+      clearError: () => setError(''),
+      confirmEmailChange: async (otp) => {
+        setError('');
+        try {
+          await confirmEmailChange(otp);
+          await loadAccount();
+        } catch (apiError) {
+          handleApiError(apiError);
+        }
+      },
+      deleteAccount: async () => {
+        setError('');
+        try {
+          await deleteAccount();
+          setAccount(null);
+          setEmail('');
+        } catch (apiError) {
+          handleApiError(apiError);
+        }
+      },
       login: async (nextEmail) => {
-        const session: AuthSession = { email: nextEmail };
-
-        await AsyncStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
-        setEmail(nextEmail);
+        setError('');
+        try {
+          await loginOrCreateAccount(nextEmail);
+        } catch (apiError) {
+          handleApiError(apiError);
+        }
       },
       logout: async () => {
-        await AsyncStorage.removeItem(SESSION_STORAGE_KEY);
-        setEmail('');
+        setError('');
+        await resetSession();
+      },
+      requestEmailChange: async (newEmail) => {
+        setError('');
+        try {
+          await requestEmailChange(newEmail);
+        } catch (apiError) {
+          handleApiError(apiError);
+        }
+      },
+      verifyLogin: async (nextEmail, otp) => {
+        setError('');
+        try {
+          await verifyAuthenticationCode(nextEmail, otp);
+          await loadAccount();
+        } catch (apiError) {
+          handleApiError(apiError);
+        }
       },
     }),
-    [email, isLoading]
+    [account, email, error, handleApiError, isLoading, loadAccount, resetSession]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -74,4 +160,8 @@ export function useAuth() {
   }
 
   return context;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Request failed.';
 }
