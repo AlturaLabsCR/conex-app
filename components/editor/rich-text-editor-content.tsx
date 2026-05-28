@@ -59,10 +59,11 @@ export function RichTextEditorContent({
   const editorInputRef = useRef<HTMLDivElement>(null);
   const lastScrollTopRef = useRef(0);
   const resolvedKeyboardInset = useViewportKeyboardInset(keyboardInset);
+  const isKeyboardVisible = resolvedKeyboardInset > 0;
   const keyboardEditorLift = resolvedKeyboardInset > 0 ? 48 : 0;
   const editorBottomPadding = 64 + resolvedKeyboardInset;
   const editorTopPadding = keyboardEditorLift;
-  useKeepSelectionVisible(editorInputRef, editorBottomPadding);
+  useKeepSelectionVisible(editorInputRef, editorBottomPadding, isKeyboardVisible);
 
   const initialConfig = useMemo(
     () => ({
@@ -193,12 +194,15 @@ function useViewportKeyboardInset(keyboardInset?: number) {
 
 function useKeepSelectionVisible(
   editorInputRef: React.RefObject<HTMLDivElement | null>,
-  bottomPadding: number
+  bottomPadding: number,
+  isKeyboardVisible: boolean
 ) {
+  const previousBottomPaddingRef = useRef(bottomPadding);
+
   const scrollSelectionIntoView = useCallback(() => {
     const editorInput = editorInputRef.current;
 
-    if (!editorInput || document.activeElement !== editorInput) {
+    if (!isKeyboardVisible || !editorInput || document.activeElement !== editorInput) {
       return;
     }
 
@@ -227,15 +231,26 @@ function useKeepSelectionVisible(
     if (selectionRect.bottom > visibleBottom) {
       editorInput.scrollTop += selectionRect.bottom - visibleBottom;
     }
-  }, [bottomPadding, editorInputRef]);
+  }, [bottomPadding, editorInputRef, isKeyboardVisible]);
 
   const scheduleSelectionScroll = useCallback(() => {
+    if (!isKeyboardVisible) {
+      return;
+    }
+
     requestAnimationFrame(() => {
       requestAnimationFrame(scrollSelectionIntoView);
     });
-  }, [scrollSelectionIntoView]);
+  }, [isKeyboardVisible, scrollSelectionIntoView]);
 
   useEffect(() => {
+    const previousBottomPadding = previousBottomPaddingRef.current;
+    previousBottomPaddingRef.current = bottomPadding;
+
+    if (!isKeyboardVisible || bottomPadding <= previousBottomPadding) {
+      return;
+    }
+
     scheduleSelectionScroll();
     const settleTimeout = window.setTimeout(scrollSelectionIntoView, 180);
     const finalTimeout = window.setTimeout(scrollSelectionIntoView, 360);
@@ -244,7 +259,7 @@ function useKeepSelectionVisible(
       window.clearTimeout(settleTimeout);
       window.clearTimeout(finalTimeout);
     };
-  }, [bottomPadding, scheduleSelectionScroll, scrollSelectionIntoView]);
+  }, [bottomPadding, isKeyboardVisible, scheduleSelectionScroll, scrollSelectionIntoView]);
 
   useEffect(() => {
     document.addEventListener('selectionchange', scheduleSelectionScroll);
