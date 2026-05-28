@@ -11,7 +11,10 @@
     "lint": "expo lint"
   },
   "dependencies": {
+    "@expo/dom-webview": "^56.0.5",
     "@expo/vector-icons": "^15.0.3",
+    "@lexical/html": "^0.44.0",
+    "@lexical/react": "^0.44.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
@@ -28,6 +31,7 @@
     "expo-symbols": "~1.0.8",
     "expo-system-ui": "~6.0.9",
     "expo-web-browser": "~15.0.10",
+    "lexical": "^0.44.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",

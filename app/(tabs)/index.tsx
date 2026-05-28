@@ -1,4 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
+import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import ThemedScrollView from '@/components/themed-scroll-view';
@@ -6,39 +7,15 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
+import { useSites } from '@/features/sites/use-sites';
+import type { Site } from '@/features/sites/types';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTranslation } from '@/i18n';
 
-type Site = {
-  path: string;
-  url: string;
-  public: boolean;
-  name: string;
-  tags: string[];
-  sub: number;
-};
-
-const SITES: Site[] = [
-  {
-    path: 'go-fitness',
-    url: 'https://conex.co.cr/go-fitness',
-    public: true,
-    name: 'Go Fitness',
-    tags: ['fitness', 'wellness'],
-    sub: 1,
-  },
-  {
-    path: 'cafe-central',
-    url: 'https://conex.co.cr/cafe-central',
-    public: false,
-    name: 'Cafe Central',
-    tags: ['Costa Rica', 'coffee shop', 'Food'],
-    sub: 1,
-  },
-];
-
 export default function SitesScreen() {
   const { t } = useTranslation();
+  const { sites } = useSites();
+  const router = useRouter();
 
   return (
     <ThemedScrollView>
@@ -48,8 +25,12 @@ export default function SitesScreen() {
         </ThemedView>
 
         <ThemedView style={styles.siteList}>
-          {SITES.map((site) => (
-            <SiteCard key={site.path} site={site} />
+          {sites.map((site) => (
+            <SiteCard
+              key={site.path}
+              site={site}
+              onOpen={() => router.push({ pathname: '/editor', params: { sitePath: site.path } })}
+            />
           ))}
         </ThemedView>
       </ThemedView>
@@ -57,21 +38,26 @@ export default function SitesScreen() {
   );
 }
 
-function SiteCard({ site }: { site: Site }) {
+function SiteCard({ onOpen, site }: { onOpen: () => void; site: Site }) {
   const colorScheme = useColorScheme() ?? 'light';
   const themeColors = Colors[colorScheme];
   const { t } = useTranslation();
 
-  async function copyUrl() {
+  async function copyUrl(event: { stopPropagation?: () => void }) {
+    event.stopPropagation?.();
     await Clipboard.setStringAsync(site.url);
   }
 
   return (
-    <ThemedView
-      style={[
+    <Pressable
+      accessibilityRole="button"
+      onPress={onOpen}
+      style={({ pressed }) => [
         styles.card,
         {
           borderColor: themeColors.border,
+          backgroundColor: themeColors.background,
+          opacity: pressed ? 0.8 : 1,
         },
       ]}>
       <View style={styles.cardHeader}>
@@ -115,7 +101,7 @@ function SiteCard({ site }: { site: Site }) {
           <TagPill key={tag} tag={tag} />
         ))}
       </View>
-    </ThemedView>
+    </Pressable>
   );
 }
 
