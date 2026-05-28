@@ -1,7 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, Easing, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 
 import { useAuth } from '@/auth/auth-context';
@@ -31,17 +31,12 @@ export default function SitesScreen() {
       <ThemedView style={styles.container}>
         <ThemedView style={styles.titleContainer}>
           <ThemedText type="title">{t('screens.sites.heading')}</ThemedText>
-          <Pressable
-            accessibilityLabel={t('sites.refresh')}
-            accessibilityRole="button"
-            disabled={isLoading}
+          <RefreshSitesButton
+            color={themeColors.secondaryControl}
+            isLoading={isLoading}
+            label={t('sites.refresh')}
             onPress={reloadSites}
-            style={({ pressed }) => [
-              styles.headerIconButton,
-              { opacity: isLoading ? 0.5 : pressed ? 0.7 : 1 },
-            ]}>
-            <IconSymbol name="arrow.clockwise" size={20} color={themeColors.secondaryControl} />
-          </Pressable>
+          />
         </ThemedView>
 
         {isLoading ? (
@@ -73,6 +68,69 @@ export default function SitesScreen() {
         />
       </ThemedView>
     </ThemedScrollView>
+  );
+}
+
+function RefreshSitesButton({
+  color,
+  isLoading,
+  label,
+  onPress,
+}: {
+  color: string;
+  isLoading: boolean;
+  label: string;
+  onPress: () => void | Promise<void>;
+}) {
+  const spinValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!isLoading) {
+      spinValue.stopAnimation();
+      spinValue.setValue(0);
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.timing(spinValue, {
+        toValue: 1,
+        duration: 900,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+
+    animation.start();
+
+    return () => {
+      animation.stop();
+    };
+  }, [isLoading, spinValue]);
+
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      disabled={isLoading}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.headerIconButton,
+        { opacity: isLoading ? 0.65 : pressed ? 0.7 : 1 },
+      ]}>
+      <Animated.View
+        style={{
+          transform: [
+            {
+              rotate: spinValue.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['0deg', '360deg'],
+              }),
+            },
+          ],
+        }}>
+        <IconSymbol name="arrow.clockwise" size={20} color={color} />
+      </Animated.View>
+    </Pressable>
   );
 }
 
@@ -519,16 +577,14 @@ function TagPill({
           minWidth: isSelected ? 32 : undefined,
         },
       ]}>
+      <ThemedText type="defaultSemiBold" style={[styles.tagText, { color: colors.text }]}>
+        {tag}
+      </ThemedText>
       {isDeleting ? (
         <ThemedActivityIndicator size="small" style={styles.tagSpinner} />
-      ) : (
-        <>
-          <ThemedText type="defaultSemiBold" style={[styles.tagText, { color: colors.text }]}>
-            {tag}
-          </ThemedText>
-          {isSelected ? <IconSymbol name="xmark" size={14} color={colors.text} /> : null}
-        </>
-      )}
+      ) : isSelected ? (
+        <IconSymbol name="xmark" size={14} color={colors.text} />
+      ) : null}
     </Pressable>
   );
 }
