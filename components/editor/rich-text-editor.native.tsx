@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Dimensions, Keyboard, StyleSheet, View } from 'react-native';
+import { Dimensions, Keyboard, StyleSheet, View } from 'react-native';
 
-import { Colors } from '@/constants/theme';
+import { ThemedActivityIndicator } from '@/components/themed-activity-indicator';
 import RichTextEditorDom from './rich-text-editor.dom';
 
 type RichTextEditorProps = {
@@ -26,7 +26,7 @@ export function RichTextEditor({
   return (
     <View ref={editorRef} style={styles.container} onLayout={updateKeyboardInset}>
       <View style={styles.loadingContainer}>
-        <ActivityIndicator color={isDark ? Colors.dark.text : Colors.light.text} size="large" />
+        <ThemedActivityIndicator />
       </View>
       <RichTextEditorDom
         initialHtml={initialHtml}

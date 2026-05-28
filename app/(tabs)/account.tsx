@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   StyleSheet,
   TextInput,
@@ -11,6 +10,7 @@ import type { AccountResponse } from '@/api/conex-api';
 import { useAuth } from '@/auth/auth-context';
 import { BodyNotice } from '@/components/body-notice';
 import { ExternalLink } from '@/components/external-link';
+import { ThemedActivityIndicator } from '@/components/themed-activity-indicator';
 import ThemedScrollView from '@/components/themed-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -169,7 +169,7 @@ export default function AccountScreen() {
         ) : null}
 
         {isLoading ? (
-          <ActivityIndicator color={themeColors.control} />
+          <ThemedActivityIndicator />
         ) : isLoggedIn && !isChangingEmail ? (
           <ThemedView style={styles.content}>
             {error ? <BodyNotice message={error} variant="error" /> : null}

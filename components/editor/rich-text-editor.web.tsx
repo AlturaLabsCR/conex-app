@@ -1,7 +1,7 @@
 import { useEffect, useState, type ComponentType } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { Colors } from '@/constants/theme';
+import { ThemedActivityIndicator } from '@/components/themed-activity-indicator';
 
 import type { RichTextEditorContentProps } from './rich-text-editor-content';
 
@@ -53,7 +53,7 @@ export function RichTextEditor({
         />
       ) : (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator color={isDark ? Colors.dark.text : Colors.light.text} size="large" />
+          <ThemedActivityIndicator />
         </View>
       )}
     </View>

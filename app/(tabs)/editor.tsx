@@ -1,14 +1,14 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // eslint-disable-next-line import/no-unresolved -- Metro resolves the .web/.native editor files.
 import { RichTextEditor } from '@/components/editor/rich-text-editor';
 import { BodyNotice } from '@/components/body-notice';
+import { ThemedActivityIndicator } from '@/components/themed-activity-indicator';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
 import { siteRepository } from '@/features/sites/site-repository';
 import type { SiteWithContent } from '@/features/sites/types';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -17,7 +17,6 @@ import { useTranslation } from '@/i18n';
 export default function EditorScreen() {
   const { sitePath } = useLocalSearchParams<{ sitePath?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
-  const themeColors = Colors[colorScheme];
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const [site, setSite] = useState<SiteWithContent | null>(null);
@@ -92,7 +91,7 @@ export default function EditorScreen() {
 
       if (syncedSite) {
         setSite(syncedSite);
-        setSavedHtml(syncedSite.contentHtml);
+        setSavedHtml(draftHtml);
       }
     } catch (syncError) {
       setError(syncError instanceof Error ? syncError.message : 'Unable to sync changes.');
@@ -106,7 +105,7 @@ export default function EditorScreen() {
       <View style={styles.content}>
         {isLoading ? (
           <View style={styles.stateContainer}>
-            <ActivityIndicator color={themeColors.text} size="large" />
+            <ThemedActivityIndicator />
           </View>
         ) : error && !site ? (
           <View style={styles.stateContainer}>

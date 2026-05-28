@@ -1,10 +1,11 @@
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import ThemedScrollView from '@/components/themed-scroll-view';
 import { BodyNotice } from '@/components/body-notice';
+import { ThemedActivityIndicator } from '@/components/themed-activity-indicator';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -18,8 +19,6 @@ import { useTranslation } from '@/i18n';
 export default function SitesScreen() {
   const { t } = useTranslation();
   const { error, isLoading, reloadSites, sites } = useSites();
-  const colorScheme = useColorScheme() ?? 'light';
-  const themeColors = Colors[colorScheme];
   const router = useRouter();
 
   return (
@@ -30,7 +29,7 @@ export default function SitesScreen() {
         </ThemedView>
 
         {isLoading ? (
-          <ActivityIndicator color={themeColors.control} />
+          <ThemedActivityIndicator />
         ) : error ? (
           <BodyNotice message={error} variant="error" />
         ) : (
@@ -171,7 +170,7 @@ function CreateSiteForm({ onCreated }: { onCreated: (site: Site) => void | Promi
           },
         ]}>
         {isCreating ? (
-          <ActivityIndicator color={themeColors.controlText} />
+          <ThemedActivityIndicator />
         ) : (
           <>
             <IconSymbol size={18} name="plus" color={themeColors.controlText} />
@@ -253,10 +252,7 @@ function SiteCard({
             },
           ]}>
           {isUpdatingVisibility ? (
-            <ActivityIndicator
-              color={site.public ? tagColorFor('public').text : themeColors.text}
-              size="small"
-            />
+            <ThemedActivityIndicator />
           ) : (
             <>
               <IconSymbol
