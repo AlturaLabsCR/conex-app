@@ -7,6 +7,7 @@ import {
   getAccount,
   getOptionalStoredSession,
   loginOrCreateAccount,
+  logout as logoutFromApi,
   requestEmailChange,
   verifyAuthenticationCode,
   type AccountResponse,
@@ -126,7 +127,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
       },
       logout: async () => {
         setError('');
-        await resetSession();
+        try {
+          await logoutFromApi();
+        } catch {
+          // Still clear local credentials if token revocation fails.
+        } finally {
+          await resetSession();
+        }
       },
       requestEmailChange: async (newEmail) => {
         setError('');

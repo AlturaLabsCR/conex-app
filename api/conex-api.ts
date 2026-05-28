@@ -225,6 +225,19 @@ export async function refreshSession() {
   return storeSession(session.email, tokens);
 }
 
+export async function logout() {
+  const session = await getOptionalStoredSession();
+
+  if (!session) {
+    return;
+  }
+
+  await request<void>('/api/auth/logout', {
+    method: 'POST',
+    body: { refresh_token: session.refreshToken },
+  });
+}
+
 export async function getAccount() {
   return request<AccountResponse>('/api/account', { authenticated: true });
 }

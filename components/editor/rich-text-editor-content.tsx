@@ -261,6 +261,8 @@ function Toolbar({
   isSaving: boolean;
   onSync?: () => void | Promise<void>;
 }) {
+  const showSyncButton = isDirty || isSaving;
+
   return (
     <div
       className="toolbar"
@@ -324,14 +326,17 @@ function Toolbar({
           <ImageToolbarButton />
         </div>
       </div>
-      {isDirty ? (
+      {showSyncButton ? (
         <>
           <Divider />
           <button
-            aria-label="Sync changes"
-            className="sync-button"
+            aria-label={isSaving ? 'Syncing changes' : 'Sync changes'}
+            aria-live="polite"
+            className={['sync-button', isSaving ? 'sync-button-saving' : '']
+              .filter(Boolean)
+              .join(' ')}
             disabled={isSaving}
-            title="Sync changes"
+            title={isSaving ? 'Syncing changes' : 'Sync changes'}
             type="button"
             onMouseDown={(event) => {
               event.preventDefault();
@@ -863,6 +868,10 @@ const styles = `
     opacity: 0.68;
   }
 
+  .sync-button-saving .toolbar-icon {
+    animation: sync-spin 0.9s linear infinite;
+  }
+
   .toolbar-button:hover,
   .toolbar-button:focus-visible,
   .sync-button:not(:disabled):hover,
@@ -884,6 +893,12 @@ const styles = `
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
+  }
+
+  @keyframes sync-spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .editor-image-node {
