@@ -12,6 +12,7 @@ export const Colors = {
   light: {
     text: '#11181C',
     background: '#fff',
+    cardBackground: '#F8FAFB',
     border: '#D5DCE1',
     control: '#0a7ea4',
     controlText: '#fff',
@@ -25,6 +26,7 @@ export const Colors = {
   dark: {
     text: '#ECEDEE',
     background: '#151718',
+    cardBackground: '#1A1D1F',
     border: '#343A3E',
     control: '#2f95dc',
     controlText: '#fff',

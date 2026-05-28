@@ -53,7 +53,7 @@ export function RichTextEditor({
         />
       ) : (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator color={isDark ? Colors.dark.control : Colors.light.control} />
+          <ActivityIndicator color={isDark ? Colors.dark.text : Colors.light.text} size="large" />
         </View>
       )}
     </View>

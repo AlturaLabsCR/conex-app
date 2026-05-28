@@ -85,7 +85,7 @@ export default function EditorScreen() {
       <View style={styles.content}>
         {isLoading ? (
           <View style={styles.stateContainer}>
-            <ActivityIndicator color={themeColors.control} />
+            <ActivityIndicator color={themeColors.text} size="large" />
           </View>
         ) : site ? (
           <>

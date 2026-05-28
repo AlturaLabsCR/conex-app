@@ -56,22 +56,13 @@ function SiteCard({ onOpen, site }: { onOpen: () => void; site: Site }) {
         styles.card,
         {
           borderColor: themeColors.border,
-          backgroundColor: themeColors.background,
+          backgroundColor: themeColors.cardBackground,
           opacity: pressed ? 0.8 : 1,
         },
       ]}>
       <View style={styles.cardHeader}>
         <View style={styles.siteIdentity}>
           <ThemedText type="subtitle">{site.name}</ThemedText>
-          <Pressable
-            accessibilityRole="button"
-            onPress={copyUrl}
-            style={({ pressed }) => [styles.urlButton, { opacity: pressed ? 0.7 : 1 }]}>
-            <ThemedText style={[styles.urlText, { color: themeColors.secondaryControl }]}>
-              {site.url}
-            </ThemedText>
-            <IconSymbol size={18} name="doc.on.doc" color={themeColors.secondaryControl} />
-          </Pressable>
         </View>
         <View
           style={[
@@ -95,6 +86,16 @@ function SiteCard({ onOpen, site }: { onOpen: () => void; site: Site }) {
           </ThemedText>
         </View>
       </View>
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={copyUrl}
+        style={({ pressed }) => [styles.urlButton, { opacity: pressed ? 0.7 : 1 }]}>
+        <ThemedText style={[styles.urlText, { color: themeColors.secondaryControl }]}>
+          {site.url}
+        </ThemedText>
+        <IconSymbol size={18} name="doc.on.doc" color={themeColors.secondaryControl} />
+      </Pressable>
 
       <View style={styles.tagList}>
         {site.tags.map((tag) => (

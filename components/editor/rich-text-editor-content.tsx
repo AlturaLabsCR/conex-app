@@ -11,33 +11,47 @@ import { $createHeadingNode, HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { $setBlocksType } from '@lexical/selection';
 import {
   $createParagraphNode,
+  $applyNodeReplacement,
+  $getNodeByKey,
   $getRoot,
   $getSelection,
   $insertNodes,
   $isRangeSelection,
+  DecoratorNode,
   FORMAT_ELEMENT_COMMAND,
   FORMAT_TEXT_COMMAND,
+  type DOMConversionMap,
+  type DOMExportOutput,
+  type EditorConfig,
   REDO_COMMAND,
   type EditorState,
+  type LexicalNode,
   type LexicalEditor,
+  type NodeKey,
+  type SerializedLexicalNode,
+  type Spread,
   UNDO_COMMAND,
 } from 'lexical';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export type RichTextEditorContentProps = {
   initialHtml: string;
   isDirty: boolean;
   isDark: boolean;
   isSaving: boolean;
+  hideToolbarScrollbar?: boolean;
+  keyboardInset?: number;
   onHtmlChange?: (html: string) => void;
   onSync?: () => void | Promise<void>;
 };
 
 export function RichTextEditorContent({
   initialHtml,
+  hideToolbarScrollbar,
   isDirty,
   isDark,
   isSaving,
+  keyboardInset,
   onHtmlChange,
   onSync,
 }: RichTextEditorContentProps) {
@@ -47,7 +61,7 @@ export function RichTextEditorContent({
   const initialConfig = useMemo(
     () => ({
       namespace: 'ConexEditor',
-      nodes: [HeadingNode, QuoteNode],
+      nodes: [HeadingNode, QuoteNode, ImageNode],
       theme: lexicalTheme,
       onError(error: Error) {
         throw error;
@@ -83,7 +97,14 @@ export function RichTextEditorContent({
   }, []);
 
   return (
-    <div className={isDark ? 'editor-shell dark' : 'editor-shell'}>
+    <div
+      className={[
+        'editor-shell',
+        isDark ? 'dark' : '',
+        hideToolbarScrollbar ? 'hide-toolbar-scrollbar' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}>
       <style>{styles}</style>
       <LexicalComposer initialConfig={initialConfig}>
         <Toolbar
@@ -92,6 +113,7 @@ export function RichTextEditorContent({
           isSaving={isSaving}
           onSync={onSync}
         />
+        <ViewportKeyboardInsetPlugin keyboardInset={keyboardInset} />
         <RichTextPlugin
           contentEditable={
             <ContentEditable
@@ -116,6 +138,45 @@ export function RichTextEditorContent({
       </LexicalComposer>
     </div>
   );
+}
+
+function ViewportKeyboardInsetPlugin({ keyboardInset }: { keyboardInset?: number }) {
+  useEffect(() => {
+    const visualViewport = window.visualViewport;
+
+    if (typeof keyboardInset === 'number') {
+      document.documentElement.style.setProperty('--keyboard-inset', `${keyboardInset}px`);
+
+      return () => {
+        document.documentElement.style.removeProperty('--keyboard-inset');
+      };
+    }
+
+    if (!visualViewport) {
+      return;
+    }
+
+    const updateKeyboardInset = () => {
+      const keyboardInset = Math.max(
+        0,
+        window.innerHeight - visualViewport.height - visualViewport.offsetTop
+      );
+
+      document.documentElement.style.setProperty('--keyboard-inset', `${keyboardInset}px`);
+    };
+
+    updateKeyboardInset();
+    visualViewport.addEventListener('resize', updateKeyboardInset);
+    visualViewport.addEventListener('scroll', updateKeyboardInset);
+
+    return () => {
+      visualViewport.removeEventListener('resize', updateKeyboardInset);
+      visualViewport.removeEventListener('scroll', updateKeyboardInset);
+      document.documentElement.style.removeProperty('--keyboard-inset');
+    };
+  }, [keyboardInset]);
+
+  return null;
 }
 
 function Toolbar({
@@ -187,6 +248,8 @@ function Toolbar({
             command={(editor) => editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'right')}>
             <AlignRightIcon />
           </ToolbarButton>
+          <Divider />
+          <ImageToolbarButton />
         </div>
       </div>
       {isDirty ? (
@@ -238,6 +301,58 @@ function ToolbarButton({
   );
 }
 
+function ImageToolbarButton() {
+  const [editor] = useLexicalComposerContext();
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const insertImage = useCallback(
+    (src: string, altText: string) => {
+      editor.update(() => {
+        insertImageOnEmptyLine({ altText, src });
+      });
+    },
+    [editor]
+  );
+
+  return (
+    <>
+      <button
+        className="toolbar-button"
+        title="Insert image"
+        type="button"
+        onMouseDown={(event) => {
+          event.preventDefault();
+          inputRef.current?.click();
+        }}>
+        <ImageIcon />
+      </button>
+      <input
+        ref={inputRef}
+        accept="image/*"
+        className="image-input"
+        type="file"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+
+          if (!file) {
+            return;
+          }
+
+          const reader = new FileReader();
+
+          reader.addEventListener('load', () => {
+            if (typeof reader.result === 'string') {
+              insertImage(reader.result, file.name);
+            }
+          });
+          reader.readAsDataURL(file);
+          event.target.value = '';
+        }}
+      />
+    </>
+  );
+}
+
 function Divider() {
   return <div className="toolbar-divider" />;
 }
@@ -260,6 +375,23 @@ function formatParagraph(editor: LexicalEditor) {
       $setBlocksType(selection, () => $createParagraphNode());
     }
   });
+}
+
+function insertImageOnEmptyLine({ altText, src }: { altText: string; src: string }) {
+  const selection = $getSelection();
+
+  if ($isRangeSelection(selection) && selection.isCollapsed()) {
+    const topLevelNode = selection.anchor.getNode().getTopLevelElement();
+
+    if (topLevelNode && topLevelNode.getTextContentSize() > 0) {
+      selection.insertParagraph();
+    }
+  }
+
+  const nextParagraph = $createParagraphNode();
+
+  $insertNodes([$createImageNode({ altText, src }), nextParagraph]);
+  nextParagraph.select();
 }
 
 function UndoIcon() {
@@ -287,6 +419,16 @@ function SyncIcon() {
       <path d="M3 21v-5h5" />
       <path d="M3 12A9 9 0 0 1 17.8 5.1L21 8" />
       <path d="M21 3v5h-5" />
+    </svg>
+  );
+}
+
+function ImageIcon() {
+  return (
+    <svg aria-hidden="true" className="toolbar-icon" viewBox="0 0 24 24">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="8" cy="10" r="1.5" />
+      <path d="m21 15-5-5L5 19" />
     </svg>
   );
 }
@@ -321,6 +463,145 @@ function AlignRightIcon() {
       <path d="M4 14h16" />
       <path d="M10 18h10" />
     </svg>
+  );
+}
+
+type SerializedImageNode = Spread<
+  {
+    altText: string;
+    src: string;
+  },
+  SerializedLexicalNode
+>;
+
+class ImageNode extends DecoratorNode<React.JSX.Element> {
+  __altText: string;
+  __src: string;
+
+  static getType() {
+    return 'image';
+  }
+
+  static clone(node: ImageNode) {
+    return new ImageNode(node.__src, node.__altText, node.__key);
+  }
+
+  static importDOM(): DOMConversionMap | null {
+    return {
+      img: (node: HTMLElement) => ({
+        conversion: () => {
+          const image = node as HTMLImageElement;
+          const src = image.getAttribute('src') ?? '';
+
+          if (!src) {
+            return null;
+          }
+
+          return {
+            node: $createImageNode({
+              altText: image.getAttribute('alt') ?? '',
+              src,
+            }),
+          };
+        },
+        priority: 1,
+      }),
+    };
+  }
+
+  static importJSON(serializedNode: SerializedImageNode) {
+    return $createImageNode({
+      altText: serializedNode.altText,
+      src: serializedNode.src,
+    });
+  }
+
+  constructor(src: string, altText: string, key?: NodeKey) {
+    super(key);
+    this.__src = src;
+    this.__altText = altText;
+  }
+
+  createDOM(_config: EditorConfig) {
+    const span = document.createElement('span');
+    span.className = 'editor-image-node';
+    return span;
+  }
+
+  updateDOM() {
+    return false;
+  }
+
+  exportDOM(): DOMExportOutput {
+    const img = document.createElement('img');
+    img.setAttribute('src', this.__src);
+
+    if (this.__altText) {
+      img.setAttribute('alt', this.__altText);
+    }
+
+    return { element: img };
+  }
+
+  exportJSON(): SerializedImageNode {
+    return {
+      altText: this.__altText,
+      src: this.__src,
+      type: 'image',
+      version: 1,
+    };
+  }
+
+  getTextContent() {
+    return this.__altText;
+  }
+
+  decorate() {
+    return <EditorImage altText={this.__altText} nodeKey={this.__key} src={this.__src} />;
+  }
+}
+
+function $createImageNode({ altText, src }: { altText: string; src: string }) {
+  return $applyNodeReplacement(new ImageNode(src, altText));
+}
+
+function $isImageNode(node: LexicalNode | null | undefined): node is ImageNode {
+  return node instanceof ImageNode;
+}
+
+function EditorImage({
+  altText,
+  nodeKey,
+  src,
+}: {
+  altText: string;
+  nodeKey: NodeKey;
+  src: string;
+}) {
+  const [editor] = useLexicalComposerContext();
+
+  const removeImage = useCallback(() => {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey);
+
+      if ($isImageNode(node)) {
+        node.remove();
+      }
+    });
+  }, [editor, nodeKey]);
+
+  return (
+    <span className="editor-image-wrap" contentEditable={false}>
+      <img alt={altText} className="editor-image" draggable={false} src={src} />
+      <button
+        aria-label="Remove image"
+        className="image-remove-button"
+        title="Remove image"
+        type="button"
+        onClick={removeImage}>
+        x
+      </button>
+    </span>
   );
 }
 
@@ -382,7 +663,7 @@ const styles = `
   .toolbar {
     position: absolute;
     left: 50%;
-    bottom: 12px;
+    bottom: calc(12px + var(--keyboard-inset, 0px));
     z-index: 2;
     display: flex;
     align-items: center;
@@ -477,6 +758,10 @@ const styles = `
     background: rgba(104, 112, 118, 0.72);
   }
 
+  .image-input {
+    display: none;
+  }
+
   .toolbar-button {
     display: inline-flex;
     align-items: center;
@@ -533,6 +818,58 @@ const styles = `
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
+  }
+
+  .editor-image-node {
+    display: block;
+    margin: 16px 0;
+  }
+
+  .editor-image-wrap {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    line-height: 0;
+  }
+
+  .editor-image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+  }
+
+  .image-remove-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    border-radius: 999px;
+    color: #ffffff;
+    background: rgba(17, 24, 28, 0.72);
+    font: 700 16px/1 system-ui, sans-serif;
+    cursor: pointer;
+    opacity: 0;
+    transition:
+      background 160ms ease,
+      opacity 160ms ease;
+  }
+
+  .editor-image-wrap:hover .image-remove-button,
+  .editor-image-wrap:focus-within .image-remove-button,
+  .image-remove-button:focus-visible {
+    opacity: 1;
+  }
+
+  .image-remove-button:hover,
+  .image-remove-button:focus-visible {
+    background: rgba(180, 35, 24, 0.9);
+    outline: none;
   }
 
   .format-italic {
@@ -616,5 +953,19 @@ const styles = `
 
   .editor-text-underline {
     text-decoration: underline;
+  }
+
+  .hide-toolbar-scrollbar .toolbar-tools {
+    scrollbar-width: none;
+  }
+
+  .hide-toolbar-scrollbar .toolbar-tools::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (max-width: 600px) {
+    .image-remove-button {
+      opacity: 1;
+    }
   }
 `;

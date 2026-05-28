@@ -4,6 +4,7 @@ import {
   Pressable,
   StyleSheet,
   TextInput,
+  View,
 } from 'react-native';
 
 import { useAuth } from '@/auth/auth-context';
@@ -118,7 +119,7 @@ export default function AccountScreen() {
   }
 
   return (
-    <ThemedScrollView>
+    <ThemedScrollView keyboardShouldPersistTaps="handled">
       <ThemedView style={styles.container}>
         <ThemedView style={styles.titleContainer}>
           <ThemedText type="title">{t('screens.account.heading')}</ThemedText>
@@ -128,37 +129,45 @@ export default function AccountScreen() {
           <ActivityIndicator color={themeColors.control} />
         ) : isLoggedIn && !isChangingEmail ? (
           <ThemedView style={styles.content}>
-            <ThemedView style={[styles.planCard, { borderColor: themeColors.border }]}>
-              <ThemedView style={styles.planHeader}>
+            <ThemedView
+              style={[
+                styles.planCard,
+                { backgroundColor: themeColors.cardBackground, borderColor: themeColors.border },
+              ]}>
+              <View style={styles.planHeader}>
                 <ThemedText style={styles.planName}>{t('account.userTitle')}</ThemedText>
-              </ThemedView>
-              <ThemedView style={styles.planMeta}>
+              </View>
+              <View style={styles.planMeta}>
                 <ThemedText style={[styles.accountEmail, { color: themeColors.secondaryControl }]}>
                   {email}
                 </ThemedText>
-              </ThemedView>
-              <ThemedView style={styles.planActions}>
+              </View>
+              <View style={styles.planActions}>
                 <AccountButton label={t('account.changeEmail')} onPress={handleChangeEmail} />
                 <AccountButton
                   label={t('account.logout')}
                   onPress={handleLogout}
                   tone="secondary"
                 />
-              </ThemedView>
+              </View>
             </ThemedView>
-            <ThemedView style={[styles.planCard, { borderColor: themeColors.border }]}>
-              <ThemedView style={styles.planHeader}>
+            <ThemedView
+              style={[
+                styles.planCard,
+                { backgroundColor: themeColors.cardBackground, borderColor: themeColors.border },
+              ]}>
+              <View style={styles.planHeader}>
                 <ThemedText style={styles.planName}>{ACCOUNT_SUBSCRIPTION.plan.name}</ThemedText>
-                <ThemedText style={styles.planPrice}>
+                <ThemedText type="subtitle" style={styles.planPrice}>
                   {planPrice}
                 </ThemedText>
-              </ThemedView>
-              <ThemedView style={styles.planMeta}>
-                <ThemedText style={{ color: themeColors.secondaryControl }}>
+              </View>
+              <View style={styles.planMeta}>
+                <ThemedText style={[styles.planMetaText, { color: themeColors.secondaryControl }]}>
                   {t('account.planDueDateLabel')} {dueDate}
                 </ThemedText>
-              </ThemedView>
-              <ThemedView style={styles.planActions}>
+              </View>
+              <View style={styles.planActions}>
                 {ACCOUNT_SUBSCRIPTION.plan.supportsRenewal ? (
                   <AccountButton
                     label={
@@ -174,24 +183,28 @@ export default function AccountScreen() {
                   onPress={() => {}}
                   tone="secondary"
                 />
-              </ThemedView>
+              </View>
             </ThemedView>
-            <ThemedView style={[styles.planCard, { borderColor: themeColors.border }]}>
-              <ThemedView style={styles.planHeader}>
+            <ThemedView
+              style={[
+                styles.planCard,
+                { backgroundColor: themeColors.cardBackground, borderColor: themeColors.border },
+              ]}>
+              <View style={styles.planHeader}>
                 <ThemedText style={styles.planName}>{t('account.dangerZone')}</ThemedText>
-              </ThemedView>
+              </View>
               <BodyNotice
                 message={t('account.deleteAccountWarning')}
                 title={t('account.warning')}
                 variant="warning"
               />
-              <ThemedView style={styles.planActions}>
+              <View style={styles.planActions}>
                 <AccountButton
                   label={t('account.deleteAccount')}
                   onPress={() => {}}
                   tone="destructive"
                 />
-              </ThemedView>
+              </View>
             </ThemedView>
           </ThemedView>
         ) : (
@@ -429,17 +442,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   planPrice: {
-    fontSize: 26,
-    lineHeight: 30,
-    fontWeight: '700',
+    flexShrink: 0,
   },
   planName: {
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 20,
+    lineHeight: 24,
     fontWeight: '700',
   },
   accountEmail: {
     width: '100%',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  planMetaText: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   planMeta: {
     alignItems: 'flex-start',
