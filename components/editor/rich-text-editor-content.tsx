@@ -56,7 +56,13 @@ export function RichTextEditorContent({
   onSync,
 }: RichTextEditorContentProps) {
   const [isToolbarHidden, setIsToolbarHidden] = useState(false);
+  const editorInputRef = useRef<HTMLDivElement>(null);
   const lastScrollTopRef = useRef(0);
+  const resolvedKeyboardInset = useViewportKeyboardInset(keyboardInset);
+  const keyboardEditorLift = resolvedKeyboardInset > 0 ? 48 : 0;
+  const editorBottomPadding = 64 + resolvedKeyboardInset;
+  const editorTopPadding = keyboardEditorLift;
+  useKeepSelectionVisible(editorInputRef, editorBottomPadding);
 
   const initialConfig = useMemo(
     () => ({
@@ -104,20 +110,28 @@ export function RichTextEditorContent({
         hideToolbarScrollbar ? 'hide-toolbar-scrollbar' : '',
       ]
         .filter(Boolean)
-        .join(' ')}>
+        .join(' ')}
+      style={{ transform: `translateY(-${keyboardEditorLift}px)` }}>
       <style>{styles}</style>
       <LexicalComposer initialConfig={initialConfig}>
         <Toolbar
+          bottom={12 + resolvedKeyboardInset}
           isDirty={isDirty}
           isHidden={isToolbarHidden}
           isSaving={isSaving}
           onSync={onSync}
         />
-        <ViewportKeyboardInsetPlugin keyboardInset={keyboardInset} />
         <RichTextPlugin
           contentEditable={
             <ContentEditable
+              ref={editorInputRef}
               className="editor-input"
+              style={{
+                paddingBottom: editorBottomPadding,
+                paddingTop: editorTopPadding,
+                scrollPaddingBottom: editorBottomPadding,
+                scrollPaddingTop: editorTopPadding,
+              }}
               onFocus={showToolbar}
               onPointerDown={showToolbar}
               onScroll={handleEditorScroll}
@@ -140,16 +154,15 @@ export function RichTextEditorContent({
   );
 }
 
-function ViewportKeyboardInsetPlugin({ keyboardInset }: { keyboardInset?: number }) {
+function useViewportKeyboardInset(keyboardInset?: number) {
+  const [viewportKeyboardInset, setViewportKeyboardInset] = useState(0);
+
   useEffect(() => {
     const visualViewport = window.visualViewport;
 
     if (typeof keyboardInset === 'number') {
-      document.documentElement.style.setProperty('--keyboard-inset', `${keyboardInset}px`);
-
-      return () => {
-        document.documentElement.style.removeProperty('--keyboard-inset');
-      };
+      setViewportKeyboardInset(keyboardInset);
+      return;
     }
 
     if (!visualViewport) {
@@ -157,12 +170,12 @@ function ViewportKeyboardInsetPlugin({ keyboardInset }: { keyboardInset?: number
     }
 
     const updateKeyboardInset = () => {
-      const keyboardInset = Math.max(
+      const nextKeyboardInset = Math.max(
         0,
         window.innerHeight - visualViewport.height - visualViewport.offsetTop
       );
 
-      document.documentElement.style.setProperty('--keyboard-inset', `${keyboardInset}px`);
+      setViewportKeyboardInset(nextKeyboardInset);
     };
 
     updateKeyboardInset();
@@ -172,19 +185,86 @@ function ViewportKeyboardInsetPlugin({ keyboardInset }: { keyboardInset?: number
     return () => {
       visualViewport.removeEventListener('resize', updateKeyboardInset);
       visualViewport.removeEventListener('scroll', updateKeyboardInset);
-      document.documentElement.style.removeProperty('--keyboard-inset');
     };
   }, [keyboardInset]);
 
-  return null;
+  return viewportKeyboardInset;
+}
+
+function useKeepSelectionVisible(
+  editorInputRef: React.RefObject<HTMLDivElement | null>,
+  bottomPadding: number
+) {
+  const scrollSelectionIntoView = useCallback(() => {
+    const editorInput = editorInputRef.current;
+
+    if (!editorInput || document.activeElement !== editorInput) {
+      return;
+    }
+
+    const selection = document.getSelection();
+    const focusNode = selection?.focusNode;
+
+    if (!selection || selection.rangeCount === 0 || !focusNode || !editorInput.contains(focusNode)) {
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    const rangeRects = range.getClientRects();
+    const selectionRect =
+      rangeRects[rangeRects.length - 1] ??
+      (focusNode.nodeType === Node.ELEMENT_NODE
+        ? (focusNode as Element).getBoundingClientRect()
+        : focusNode.parentElement?.getBoundingClientRect());
+
+    if (!selectionRect) {
+      return;
+    }
+
+    const editorRect = editorInput.getBoundingClientRect();
+    const visibleBottom = editorRect.bottom - bottomPadding + 16;
+
+    if (selectionRect.bottom > visibleBottom) {
+      editorInput.scrollTop += selectionRect.bottom - visibleBottom;
+    }
+  }, [bottomPadding, editorInputRef]);
+
+  const scheduleSelectionScroll = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(scrollSelectionIntoView);
+    });
+  }, [scrollSelectionIntoView]);
+
+  useEffect(() => {
+    scheduleSelectionScroll();
+    const settleTimeout = window.setTimeout(scrollSelectionIntoView, 180);
+    const finalTimeout = window.setTimeout(scrollSelectionIntoView, 360);
+
+    return () => {
+      window.clearTimeout(settleTimeout);
+      window.clearTimeout(finalTimeout);
+    };
+  }, [bottomPadding, scheduleSelectionScroll, scrollSelectionIntoView]);
+
+  useEffect(() => {
+    document.addEventListener('selectionchange', scheduleSelectionScroll);
+
+    return () => {
+      document.removeEventListener('selectionchange', scheduleSelectionScroll);
+    };
+  }, [scheduleSelectionScroll]);
+
+  return scheduleSelectionScroll;
 }
 
 function Toolbar({
+  bottom,
   isDirty,
   isHidden,
   isSaving,
   onSync,
 }: {
+  bottom: number;
   isDirty: boolean;
   isHidden: boolean;
   isSaving: boolean;
@@ -193,6 +273,7 @@ function Toolbar({
   return (
     <div
       className={isHidden ? 'toolbar toolbar-hidden' : 'toolbar'}
+      style={{ bottom }}
       aria-label="Editor formatting">
       <div className="toolbar-tools-wrap">
         <div className="toolbar-tools">
@@ -663,7 +744,7 @@ const styles = `
   .toolbar {
     position: absolute;
     left: 50%;
-    bottom: calc(12px + var(--keyboard-inset, 0px));
+    bottom: 12px;
     z-index: 2;
     display: flex;
     align-items: center;
@@ -913,7 +994,8 @@ const styles = `
     height: 100%;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 0 0 112px;
+    padding: 0 0 64px;
+    scroll-padding-bottom: 64px;
     outline: none;
     font-size: 16px;
     line-height: 1.55;

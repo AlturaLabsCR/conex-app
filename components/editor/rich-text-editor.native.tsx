@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Dimensions, Keyboard, StyleSheet, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
@@ -21,10 +21,10 @@ export function RichTextEditor({
   onHtmlChange,
   onSync,
 }: RichTextEditorProps) {
-  const keyboardInset = useKeyboardInset();
+  const { editorRef, keyboardInset, updateKeyboardInset } = useKeyboardInset();
 
   return (
-    <View style={[styles.container, { marginBottom: keyboardInset }]}>
+    <View ref={editorRef} style={styles.container} onLayout={updateKeyboardInset}>
       <View style={styles.loadingContainer}>
         <ActivityIndicator color={isDark ? Colors.dark.text : Colors.light.text} size="large" />
       </View>
@@ -34,6 +34,7 @@ export function RichTextEditor({
         isDirty={isDirty}
         isDark={isDark}
         isSaving={isSaving}
+        keyboardInset={keyboardInset}
         onHtmlChange={onHtmlChange}
         onSync={onSync}
         dom={domProps}
@@ -43,38 +44,47 @@ export function RichTextEditor({
 }
 
 function useKeyboardInset() {
-  const isKeyboardVisibleRef = useRef(false);
-  const visibleWindowHeightRef = useRef(Dimensions.get('window').height);
+  const editorRef = useRef<View>(null);
+  const keyboardTopRef = useRef<number | null>(null);
   const [keyboardInset, setKeyboardInset] = useState(0);
 
-  useEffect(() => {
-    const dimensionsSubscription = Dimensions.addEventListener('change', ({ window }) => {
-      if (!isKeyboardVisibleRef.current) {
-        visibleWindowHeightRef.current = window.height;
-      }
+  const updateKeyboardInset = useCallback(() => {
+    const keyboardTop = keyboardTopRef.current;
+
+    if (keyboardTop === null) {
+      setKeyboardInset(0);
+      return;
+    }
+
+    editorRef.current?.measureInWindow((_x, y, _width, height) => {
+      setKeyboardInset(Math.max(0, y + height - keyboardTop));
     });
+  }, []);
+
+  useEffect(() => {
     const showSubscription = Keyboard.addListener('keyboardDidShow', (event) => {
-      isKeyboardVisibleRef.current = true;
+      const windowHeight = Dimensions.get('window').height;
+      const keyboardTop = windowHeight - event.endCoordinates.height;
 
-      const currentWindowHeight = Dimensions.get('window').height;
-      const nativeResizeAmount = Math.max(0, visibleWindowHeightRef.current - currentWindowHeight);
+      keyboardTopRef.current =
+        event.endCoordinates.screenY > 0
+          ? Math.min(event.endCoordinates.screenY, keyboardTop)
+          : keyboardTop;
 
-      setKeyboardInset(Math.max(0, event.endCoordinates.height - nativeResizeAmount));
+      requestAnimationFrame(updateKeyboardInset);
     });
     const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
-      isKeyboardVisibleRef.current = false;
-      visibleWindowHeightRef.current = Dimensions.get('window').height;
+      keyboardTopRef.current = null;
       setKeyboardInset(0);
     });
 
     return () => {
-      dimensionsSubscription.remove();
       showSubscription.remove();
       hideSubscription.remove();
     };
-  }, []);
+  }, [updateKeyboardInset]);
 
-  return keyboardInset;
+  return { editorRef, keyboardInset, updateKeyboardInset };
 }
 
 const domProps = {
