@@ -42,6 +42,7 @@ export type RichTextEditorContentProps = {
   hideToolbarScrollbar?: boolean;
   keyboardInset?: number;
   onHtmlChange?: (html: string) => void;
+  onReady?: () => void;
   onSync?: () => void | Promise<void>;
 };
 
@@ -53,6 +54,7 @@ export function RichTextEditorContent({
   isSaving,
   keyboardInset,
   onHtmlChange,
+  onReady,
   onSync,
 }: RichTextEditorContentProps) {
   const editorInputRef = useRef<HTMLDivElement>(null);
@@ -62,6 +64,16 @@ export function RichTextEditorContent({
   const editorBottomPadding = 88 + resolvedKeyboardInset;
   const editorTopPadding = keyboardEditorLift;
   useKeepSelectionVisible(editorInputRef, editorBottomPadding, isKeyboardVisible);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      onReady?.();
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [onReady]);
 
   const initialConfig = useMemo(
     () => ({
@@ -718,13 +730,20 @@ const styles = `
     height: 100%;
   }
 
+  html,
   body {
+    width: 100%;
+    min-width: 100%;
+    height: 100%;
+    min-height: 100%;
     margin: 0;
     background: transparent;
   }
 
   .editor-shell {
     position: relative;
+    width: 100%;
+    min-width: 100%;
     height: 100%;
     min-height: 100%;
     color: #11181c;

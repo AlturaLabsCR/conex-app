@@ -22,12 +22,18 @@ export function RichTextEditor({
   onSync,
 }: RichTextEditorProps) {
   const { editorRef, keyboardInset, updateKeyboardInset } = useKeyboardInset();
+  const [isEditorReady, setIsEditorReady] = useState(false);
+  const handleEditorReady = useCallback(() => {
+    setIsEditorReady(true);
+  }, []);
 
   return (
     <View ref={editorRef} style={styles.container} onLayout={updateKeyboardInset}>
-      <View style={styles.loadingContainer}>
-        <ThemedActivityIndicator />
-      </View>
+      {!isEditorReady ? (
+        <View style={styles.loadingContainer}>
+          <ThemedActivityIndicator />
+        </View>
+      ) : null}
       <RichTextEditorDom
         initialHtml={initialHtml}
         hideToolbarScrollbar
@@ -36,6 +42,7 @@ export function RichTextEditor({
         isSaving={isSaving}
         keyboardInset={keyboardInset}
         onHtmlChange={onHtmlChange}
+        onReady={handleEditorReady}
         onSync={onSync}
         dom={domProps}
       />

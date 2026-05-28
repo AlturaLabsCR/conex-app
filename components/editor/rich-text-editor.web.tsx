@@ -10,6 +10,7 @@ type RichTextEditorProps = {
   isDirty: boolean;
   isDark: boolean;
   isSaving: boolean;
+  onReady?: () => void;
   onHtmlChange: (html: string) => void;
   onSync: () => void | Promise<void>;
 };
@@ -19,6 +20,7 @@ export function RichTextEditor({
   isDirty,
   isDark,
   isSaving,
+  onReady,
   onHtmlChange,
   onSync,
 }: RichTextEditorProps) {
@@ -48,6 +50,7 @@ export function RichTextEditor({
           isDirty={isDirty}
           isDark={isDark}
           isSaving={isSaving}
+          onReady={onReady}
           onHtmlChange={onHtmlChange}
           onSync={onSync}
         />
