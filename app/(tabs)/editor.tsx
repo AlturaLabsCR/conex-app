@@ -9,6 +9,7 @@ import { BodyNotice } from '@/components/body-notice';
 import { ThemedActivityIndicator } from '@/components/themed-activity-indicator';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { siteDraftRepository } from '@/features/sites/site-draft-repository';
 import { siteRepository } from '@/features/sites/site-repository';
 import type { SiteWithContent } from '@/features/sites/types';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -50,9 +51,13 @@ export default function EditorScreen() {
             ? await siteRepository.getSite(fallbackPath)
             : null;
 
+        const localDraftHtml = nextSite
+          ? await siteDraftRepository.getSiteDraft(nextSite.sub, nextSite.path)
+          : null;
+
         if (isMounted) {
           setSite(nextSite);
-          setDraftHtml(nextSite?.contentHtml ?? '');
+          setDraftHtml(localDraftHtml ?? nextSite?.contentHtml ?? '');
           setSavedHtml(nextSite?.contentHtml ?? '');
         }
       } catch (loadError) {
@@ -90,6 +95,7 @@ export default function EditorScreen() {
       const syncedSite = await siteRepository.saveSiteContent(site.path, draftHtml);
 
       if (syncedSite) {
+        await siteDraftRepository.deleteSiteDraft(site.sub, site.path);
         setSite(syncedSite);
         setSavedHtml(draftHtml);
       }
@@ -99,6 +105,33 @@ export default function EditorScreen() {
       setIsSaving(false);
     }
   }, [draftHtml, isDirty, site]);
+
+  const persistLocalDraft = useCallback(
+    async (nextHtml: string) => {
+      if (!site) {
+        return;
+      }
+
+      try {
+        if (nextHtml === savedHtml) {
+          await siteDraftRepository.deleteSiteDraft(site.sub, site.path);
+        } else {
+          await siteDraftRepository.saveSiteDraft(site.sub, site.path, nextHtml);
+        }
+      } catch (draftError) {
+        setError(draftError instanceof Error ? draftError.message : 'Unable to store local draft.');
+      }
+    },
+    [savedHtml, site]
+  );
+
+  const handleHtmlChange = useCallback(
+    (nextHtml: string) => {
+      setDraftHtml(nextHtml);
+      void persistLocalDraft(nextHtml);
+    },
+    [persistLocalDraft]
+  );
 
   return (
     <ThemedView style={[styles.screen, { paddingTop: insets.top + 32 }]}>
@@ -121,11 +154,11 @@ export default function EditorScreen() {
             <View style={styles.editorFrame}>
               <RichTextEditor
                 key={site.path}
-                initialHtml={savedHtml}
+                initialHtml={draftHtml}
                 isDirty={isDirty}
                 isDark={colorScheme === 'dark'}
                 isSaving={isSaving}
-                onHtmlChange={setDraftHtml}
+                onHtmlChange={handleHtmlChange}
                 onSync={handleSync}
               />
             </View>
