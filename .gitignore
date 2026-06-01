@@ -45,3 +45,4 @@ app-example
 # extra
 .android/
 .codex
+.env

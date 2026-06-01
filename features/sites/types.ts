@@ -5,9 +5,9 @@ export type Site = {
   name: string;
   tags: string[];
   sub: number;
+  clicks: number;
 };
 
 export type SiteWithContent = Site & {
   contentHtml: string;
 };
-

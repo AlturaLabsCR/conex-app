@@ -24,6 +24,7 @@ type AuthContextValue = {
   login: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   requestEmailChange: (newEmail: string) => Promise<void>;
+  refreshAccount: () => Promise<void>;
   verifyLogin: (email: string, otp: string) => Promise<void>;
 };
 
@@ -139,6 +140,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setError('');
         try {
           await requestEmailChange(newEmail);
+        } catch (apiError) {
+          handleApiError(apiError);
+        }
+      },
+      refreshAccount: async () => {
+        setError('');
+        try {
+          await loadAccount();
         } catch (apiError) {
           handleApiError(apiError);
         }

@@ -26,6 +26,7 @@ const MAPPING = {
   xmark: 'close',
   'arrow.clockwise': 'sync',
   trash: 'delete',
+  'cursorarrow.click': 'ads-click',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
 } as IconMapping;

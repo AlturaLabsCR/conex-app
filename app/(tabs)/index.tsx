@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 
+import { API_BASE_URL } from '@/api/conex-api';
 import { useAuth } from '@/auth/auth-context';
 import ThemedScrollView from '@/components/themed-scroll-view';
 import { BodyNotice } from '@/components/body-notice';
@@ -278,7 +279,7 @@ function CreateSiteForm({
             },
           ]}>
           <ThemedText style={[styles.urlHost, { color: themeColors.secondaryControl }]}>
-            https://conex.co.cr/
+            {API_BASE_URL}/
           </ThemedText>
           <TextInput
             autoCapitalize="none"
@@ -334,7 +335,7 @@ function SiteCard({
 }) {
   const colorScheme = useColorScheme() ?? 'light';
   const themeColors = Colors[colorScheme];
-  const { t } = useTranslation();
+  const { locale, t } = useTranslation();
   const swipeableRef = useRef<Swipeable>(null);
   const [siteError, setSiteError] = useState('');
   const [isAddingTag, setIsAddingTag] = useState(false);
@@ -492,37 +493,47 @@ function SiteCard({
           <View style={styles.siteIdentity}>
             <ThemedText type="subtitle">{site.name}</ThemedText>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            disabled={isUpdatingVisibility}
-            onPress={updateVisibility}
-            style={[
-              styles.visibilityPill,
-              {
-                backgroundColor: site.public ? tagColorFor('public').background : themeColors.border,
-                opacity: isUpdatingVisibility ? 0.6 : 1,
-              },
-            ]}>
-            {isUpdatingVisibility ? (
-              <ThemedActivityIndicator />
-            ) : (
-              <>
-                <IconSymbol
-                  size={14}
-                  name={site.public ? 'eye' : 'eye.slash'}
-                  color={site.public ? tagColorFor('public').text : themeColors.text}
-                />
-                <ThemedText
-                  type="defaultSemiBold"
-                  style={[
-                    styles.visibilityText,
-                    { color: site.public ? tagColorFor('public').text : themeColors.text },
-                  ]}>
-                  {site.public ? t('sites.public') : t('sites.private')}
+          <View style={styles.headerMeta}>
+            {site.public ? (
+              <View style={styles.clickMetric}>
+                <IconSymbol size={16} name="cursorarrow.click" color={themeColors.secondaryControl} />
+                <ThemedText style={[styles.clickMetricText, { color: themeColors.secondaryControl }]}>
+                  {new Intl.NumberFormat(locale).format(site.clicks)}
                 </ThemedText>
-              </>
-            )}
-          </Pressable>
+              </View>
+            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              disabled={isUpdatingVisibility}
+              onPress={updateVisibility}
+              style={[
+                styles.visibilityPill,
+                {
+                  backgroundColor: site.public ? tagColorFor('public').background : themeColors.border,
+                  opacity: isUpdatingVisibility ? 0.6 : 1,
+                },
+              ]}>
+              {isUpdatingVisibility ? (
+                <ThemedActivityIndicator />
+              ) : (
+                <>
+                  <IconSymbol
+                    size={14}
+                    name={site.public ? 'eye' : 'eye.slash'}
+                    color={site.public ? tagColorFor('public').text : themeColors.text}
+                  />
+                  <ThemedText
+                    type="defaultSemiBold"
+                    style={[
+                      styles.visibilityText,
+                      { color: site.public ? tagColorFor('public').text : themeColors.text },
+                    ]}>
+                    {site.public ? t('sites.public') : t('sites.private')}
+                  </ThemedText>
+                </>
+              )}
+            </Pressable>
+          </View>
         </View>
 
         {siteError ? <BodyNotice message={siteError} variant="error" /> : null}
@@ -798,6 +809,11 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
+  headerMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   urlButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -807,6 +823,15 @@ const styles = StyleSheet.create({
   },
   urlText: {
     flexShrink: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  clickMetric: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  clickMetricText: {
     fontSize: 13,
     lineHeight: 18,
   },

@@ -8,6 +8,7 @@ export const LOCAL_SITES: SiteWithContent[] = [
     name: 'Go Fitness',
     tags: ['fitness', 'wellness'],
     sub: 1,
+    clicks: 12,
     contentHtml:
       '<p>Build a landing page section for memberships, training schedules, and wellness updates.</p>',
   },
@@ -18,6 +19,7 @@ export const LOCAL_SITES: SiteWithContent[] = [
     name: 'Cafe Central',
     tags: ['Costa Rica', 'coffee shop', 'Food'],
     sub: 1,
+    clicks: 0,
     contentHtml:
       '<p>Draft menu highlights, opening hours, and coffee origin notes here.</p>',
   },

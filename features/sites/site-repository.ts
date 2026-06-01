@@ -20,6 +20,7 @@ function siteFromApi(site: conexApi.SiteResponse): Site {
     tags: site.tags,
     url: site.url,
     sub: site.sub,
+    clicks: site.clicks,
   };
 }
 

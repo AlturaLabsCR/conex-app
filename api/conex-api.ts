@@ -1,8 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = 'https://conex.co.cr';
+export const API_BASE_URL = normalizeBaseURL(
+  process.env.EXPO_PUBLIC_CONEX_API_BASE_URL || 'https://conex.co.cr'
+);
 const SESSION_STORAGE_KEY = 'conex.session';
 const REFRESH_EARLY_MS = 30_000;
+
+function normalizeBaseURL(url: string) {
+  return url.replace(/\/+$/, '');
+}
 
 export type ApiSession = {
   email: string;
@@ -38,8 +44,50 @@ export type AccountResponse = {
         count: number;
       };
       supports_renewal: boolean;
+      policy: PlanPolicyResponse;
     };
   };
+};
+
+export type PlanPolicyResponse = {
+  max_bytes_per_site: number;
+  max_sites: number;
+  max_subpaths_per_site: number;
+};
+
+export type PlanResponse = {
+  id: string;
+  name: string;
+  price: {
+    amount: number;
+    currency: string;
+  };
+  billing_period: {
+    unit: string;
+    count: number;
+  };
+  supports_renewal: boolean;
+  policy: PlanPolicyResponse;
+};
+
+export type PayPalOrderResponse = {
+  id: string;
+  links: Record<string, unknown>[];
+  [key: string]: unknown;
+};
+
+export type CapturePaymentResponse = {
+  payment: {
+    order_id: string;
+    sub: number;
+    plan_id: string;
+    amount: number;
+    currency: string;
+    status: string;
+    created_at: number;
+    paid_at: number;
+  };
+  paypal: Record<string, unknown>;
 };
 
 export type SiteResponse = {
@@ -49,6 +97,7 @@ export type SiteResponse = {
   name: string;
   tags: string[];
   url: string;
+  clicks: number;
 };
 
 export type OwnedSiteResponse = SiteResponse & {
@@ -240,6 +289,24 @@ export async function logout() {
 
 export async function getAccount() {
   return request<AccountResponse>('/api/account', { authenticated: true });
+}
+
+export async function listPlans() {
+  return request<PlanResponse[]>('/api/plans');
+}
+
+export async function createPlanOrder(planID: string) {
+  return request<PayPalOrderResponse>(`/api/plans/create/${encodeURIComponent(planID)}`, {
+    method: 'POST',
+    authenticated: true,
+  });
+}
+
+export async function capturePlanOrder(orderID: string) {
+  return request<CapturePaymentResponse>(`/api/plans/capture/${encodeURIComponent(orderID)}`, {
+    method: 'POST',
+    authenticated: true,
+  });
 }
 
 export async function deleteAccount() {
