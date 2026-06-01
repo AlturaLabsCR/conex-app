@@ -374,18 +374,21 @@ function Toolbar({
           </ToolbarButton>
           <Divider />
           <ToolbarButton
+            disabled={isTableSelected}
             label="Align left"
-            command={(editor) => editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'left')}>
+            command={(editor) => formatAlignment(editor, 'left')}>
             <AlignLeftIcon />
           </ToolbarButton>
           <ToolbarButton
+            disabled={isTableSelected}
             label="Align center"
-            command={(editor) => editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'center')}>
+            command={(editor) => formatAlignment(editor, 'center')}>
             <AlignCenterIcon />
           </ToolbarButton>
           <ToolbarButton
+            disabled={isTableSelected}
             label="Align right"
-            command={(editor) => editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, 'right')}>
+            command={(editor) => formatAlignment(editor, 'right')}>
             <AlignRightIcon />
           </ToolbarButton>
           <Divider />
@@ -970,6 +973,14 @@ function formatParagraph(editor: LexicalEditor) {
 
     if ($isRangeSelection(selection)) {
       $setBlocksType(selection, () => $createParagraphNode());
+    }
+  });
+}
+
+function formatAlignment(editor: LexicalEditor, alignment: 'left' | 'center' | 'right') {
+  editor.update(() => {
+    if (!getSelectedTableLocation()) {
+      editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, alignment);
     }
   });
 }
@@ -1581,21 +1592,40 @@ const styles = `
     width: 100%;
     max-width: 100%;
     overflow-x: auto;
+    border: 1px solid #c9d1d7;
+    border-radius: 8px;
+  }
+
+  .dark .editor-table-scrollable-wrapper {
+    border-color: #343a3e;
   }
 
   .editor-table {
     width: 100% !important;
     min-width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     table-layout: fixed;
   }
 
   .editor-table-cell,
   .editor-table-cell-header {
     min-width: 96px;
-    border: 1px solid #c9d1d7;
+    border: 0;
+    border-right: 1px solid #c9d1d7;
+    border-bottom: 1px solid #c9d1d7;
     padding: 8px;
     vertical-align: top;
+  }
+
+  .editor-table-cell:last-child,
+  .editor-table-cell-header:last-child {
+    border-right: 0;
+  }
+
+  .editor-table tr:last-child .editor-table-cell,
+  .editor-table tr:last-child .editor-table-cell-header {
+    border-bottom: 0;
   }
 
   .dark .editor-table-cell,
