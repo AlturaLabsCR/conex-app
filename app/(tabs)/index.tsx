@@ -345,10 +345,10 @@ function SiteCard({
   const [newTag, setNewTag] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
 
-  const trimmedNewTag = newTag.trim();
+  const trimmedNewTag = formatTag(newTag);
   const canAddTag =
     Boolean(trimmedNewTag) &&
-    !site.tags.some((tag) => tag.toLowerCase() === trimmedNewTag.toLowerCase()) &&
+    !site.tags.some((tag) => normalizeTag(tag) === normalizeTag(trimmedNewTag)) &&
     !isUpdatingTags;
 
   async function copyUrl(event: { stopPropagation?: () => void }) {
@@ -630,11 +630,12 @@ function TagPill({
   tag: string;
 }) {
   const colors = tagColorFor(tag);
+  const displayTag = formatTag(tag);
   const { t } = useTranslation();
 
   return (
     <Pressable
-      accessibilityLabel={isSelected ? t('sites.deleteTag') : tag}
+      accessibilityLabel={isSelected ? t('sites.deleteTag') : displayTag}
       accessibilityRole="button"
       onPress={(event) => {
         event.stopPropagation();
@@ -648,7 +649,7 @@ function TagPill({
         },
       ]}>
       <ThemedText type="defaultSemiBold" style={[styles.tagText, { color: colors.text }]}>
-        {tag}
+        {displayTag}
       </ThemedText>
       {isDeleting ? (
         <ThemedActivityIndicator size="small" style={styles.tagSpinner} />
@@ -679,7 +680,12 @@ function isValidSitePath(path: string) {
 }
 
 function normalizeTag(tag: string) {
-  return tag.replace(/\s+/g, '').toLowerCase();
+  return tag.replace(/^#+/, '').replace(/\s+/g, '').toLowerCase();
+}
+
+function formatTag(tag: string) {
+  const normalizedTag = normalizeTag(tag);
+  return normalizedTag ? `#${normalizedTag}` : '';
 }
 
 function tagColorFor(tag: string) {
