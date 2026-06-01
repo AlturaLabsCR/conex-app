@@ -514,7 +514,7 @@ function SiteCard({
                 },
               ]}>
               {isUpdatingVisibility ? (
-                <ThemedActivityIndicator />
+                <ThemedActivityIndicator size="small" style={styles.tagSpinner} />
               ) : (
                 <>
                   <IconSymbol

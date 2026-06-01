@@ -128,7 +128,9 @@ function createPayPalContainer(id: string, backgroundColor: string, textColor: s
       id={id}
       style={{
         backgroundColor,
+        boxSizing: 'border-box',
         color: textColor,
+        maxWidth: 420,
         minHeight: 160,
         padding: 16,
         width: '100%',
@@ -212,6 +214,7 @@ const styles = StyleSheet.create({
   paymentBody: {
     flex: 1,
     alignItems: 'center',
+    paddingHorizontal: 16,
     paddingTop: 24,
   },
   paymentError: {

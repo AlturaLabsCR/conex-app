@@ -7,8 +7,22 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
+import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
 import { $createHeadingNode, HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { $setBlocksType } from '@lexical/selection';
+import {
+  $deleteTableColumnAtSelection,
+  $deleteTableRowAtSelection,
+  $getTableCellNodeFromLexicalNode,
+  $getTableRowIndexFromTableCellNode,
+  $insertTableColumnAtSelection,
+  $insertTableRowAtSelection,
+  $isTableNode,
+  INSERT_TABLE_COMMAND,
+  TableCellNode,
+  TableNode,
+  TableRowNode,
+} from '@lexical/table';
 import {
   $createParagraphNode,
   $applyNodeReplacement,
@@ -16,10 +30,18 @@ import {
   $getRoot,
   $getSelection,
   $insertNodes,
+  $isElementNode,
+  $isNodeSelection,
+  $isParagraphNode,
   $isRangeSelection,
+  $isRootNode,
   DecoratorNode,
+  COMMAND_PRIORITY_CRITICAL,
+  DELETE_CHARACTER_COMMAND,
   FORMAT_ELEMENT_COMMAND,
   FORMAT_TEXT_COMMAND,
+  KEY_BACKSPACE_COMMAND,
+  KEY_DELETE_COMMAND,
   type DOMConversionMap,
   type DOMExportOutput,
   type EditorConfig,
@@ -32,6 +54,7 @@ import {
   type Spread,
   UNDO_COMMAND,
 } from 'lexical';
+import { mergeRegister } from 'lexical';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export type RichTextEditorContentProps = {
@@ -78,7 +101,7 @@ export function RichTextEditorContent({
   const initialConfig = useMemo(
     () => ({
       namespace: 'ConexEditor',
-      nodes: [HeadingNode, QuoteNode, ImageNode],
+      nodes: [HeadingNode, QuoteNode, TableNode, TableRowNode, TableCellNode, ImageNode],
       theme: lexicalTheme,
       onError(error: Error) {
         throw error;
@@ -132,6 +155,9 @@ export function RichTextEditorContent({
           ErrorBoundary={LexicalErrorBoundary}
         />
         <HistoryPlugin />
+        <TablePlugin hasHorizontalScroll />
+        <BlockProtectedNodeKeyboardDeletePlugin />
+        <TableDeleteOverlayPlugin />
         <AutoFocusPlugin />
         <OnChangePlugin
           ignoreHistoryMergeTagChange
@@ -262,6 +288,27 @@ function useKeepSelectionVisible(
   return scheduleSelectionScroll;
 }
 
+const MIN_TABLE_COLUMNS = 2;
+const MAX_TABLE_COLUMNS = 4;
+const MIN_TABLE_ROWS = 3;
+const MAX_TABLE_ROWS = 20;
+
+type SelectedTableState = {
+  columns: number;
+  rows: number;
+  selectedRowIndex: number;
+};
+
+type SelectedTableLocation = SelectedTableState & {
+  tableKey: NodeKey;
+};
+
+type OverlayPosition = {
+  tableKey: NodeKey;
+  top: number;
+  right: number;
+};
+
 function Toolbar({
   bottom,
   isDirty,
@@ -274,6 +321,7 @@ function Toolbar({
   onSync?: () => void | Promise<void>;
 }) {
   const showSyncButton = isDirty || isSaving;
+  const isTableSelected = useIsTableSelected();
 
   return (
     <div
@@ -309,10 +357,16 @@ function Toolbar({
             <span className="format-underline">U</span>
           </ToolbarButton>
           <Divider />
-          <ToolbarButton label="Heading 2" command={(editor) => formatHeading(editor, 'h2')}>
+          <ToolbarButton
+            disabled={isTableSelected}
+            label="Heading 2"
+            command={(editor) => formatHeading(editor, 'h2')}>
             <span className="heading-icon heading-icon-main">T</span>
           </ToolbarButton>
-          <ToolbarButton label="Heading 3" command={(editor) => formatHeading(editor, 'h3')}>
+          <ToolbarButton
+            disabled={isTableSelected}
+            label="Heading 3"
+            command={(editor) => formatHeading(editor, 'h3')}>
             <span className="heading-icon heading-icon-sub">T</span>
           </ToolbarButton>
           <ToolbarButton label="Paragraph" command={(editor) => formatParagraph(editor)}>
@@ -335,7 +389,25 @@ function Toolbar({
             <AlignRightIcon />
           </ToolbarButton>
           <Divider />
-          <ImageToolbarButton />
+          <ImageToolbarButton disabled={isTableSelected} />
+          <Divider />
+          <ToolbarButton
+            disabled={isTableSelected}
+            label="Insert table"
+            command={(editor) =>
+              editor.update(() => {
+                if (!getSelectedTableLocation()) {
+                  editor.dispatchCommand(INSERT_TABLE_COMMAND, {
+                    columns: '3',
+                    rows: '3',
+                    includeHeaders: false,
+                  });
+                }
+              })
+            }>
+            <TableIcon />
+          </ToolbarButton>
+          <TableToolbarControls />
         </div>
       </div>
       {showSyncButton ? (
@@ -365,13 +437,34 @@ function Toolbar({
   );
 }
 
+function useIsTableSelected() {
+  const [editor] = useLexicalComposerContext();
+  const [isTableSelected, setIsTableSelected] = useState(false);
+
+  const refreshTableSelection = useCallback(() => {
+    setIsTableSelected(getSelectedTableLocation() !== null);
+  }, []);
+
+  useEffect(() => {
+    editor.getEditorState().read(refreshTableSelection);
+
+    return editor.registerUpdateListener(({ editorState }) => {
+      editorState.read(refreshTableSelection);
+    });
+  }, [editor, refreshTableSelection]);
+
+  return isTableSelected;
+}
+
 function ToolbarButton({
   children,
   command,
+  disabled,
   label,
 }: {
   children: React.ReactNode;
   command: (editor: LexicalEditor) => void;
+  disabled?: boolean;
   label: string;
 }) {
   const [editor] = useLexicalComposerContext();
@@ -379,10 +472,15 @@ function ToolbarButton({
   return (
     <button
       className="toolbar-button"
+      disabled={disabled}
       title={label}
       type="button"
       onMouseDown={(event) => {
         event.preventDefault();
+        if (disabled) {
+          return;
+        }
+
         command(editor);
       }}>
       {children}
@@ -390,13 +488,416 @@ function ToolbarButton({
   );
 }
 
-function ImageToolbarButton() {
+function TableToolbarControls() {
+  const [editor] = useLexicalComposerContext();
+  const [tableState, setTableState] = useState<SelectedTableState | null>(null);
+
+  const refreshTableState = useCallback(() => {
+    setTableState(getSelectedTableState());
+  }, []);
+
+  useEffect(() => {
+    editor.getEditorState().read(refreshTableState);
+
+    return editor.registerUpdateListener(({ editorState }) => {
+      editorState.read(refreshTableState);
+    });
+  }, [editor, refreshTableState]);
+
+  const canAddColumn = tableState !== null && tableState.columns < MAX_TABLE_COLUMNS;
+  const canDeleteColumn = tableState !== null && tableState.columns > MIN_TABLE_COLUMNS;
+  const canAddRow = tableState !== null && tableState.rows < MAX_TABLE_ROWS;
+  const canDeleteRow =
+    tableState !== null &&
+    tableState.rows > MIN_TABLE_ROWS &&
+    tableState.selectedRowIndex > 0;
+
+  if (!tableState) {
+    return null;
+  }
+
+  return (
+    <>
+      <Divider />
+      <ToolbarButton
+        disabled={!canAddColumn}
+        label="Add column"
+        command={(activeEditor) => {
+          activeEditor.update(() => {
+            const selectedTable = getSelectedTableState();
+
+            if (selectedTable && selectedTable.columns < MAX_TABLE_COLUMNS) {
+              $insertTableColumnAtSelection(true);
+              resetSelectedTableColumnWidths();
+            }
+          });
+        }}>
+        <AddColumnIcon />
+      </ToolbarButton>
+      <ToolbarButton
+        disabled={!canDeleteColumn}
+        label="Delete column"
+        command={(activeEditor) => {
+          activeEditor.update(() => {
+            const selectedTable = getSelectedTableState();
+
+            if (selectedTable && selectedTable.columns > MIN_TABLE_COLUMNS) {
+              $deleteTableColumnAtSelection();
+              resetSelectedTableColumnWidths();
+            }
+          });
+        }}>
+        <DeleteColumnIcon />
+      </ToolbarButton>
+      <ToolbarButton
+        disabled={!canAddRow}
+        label="Add row"
+        command={(activeEditor) => {
+          activeEditor.update(() => {
+            const selectedTable = getSelectedTableState();
+
+            if (selectedTable && selectedTable.rows < MAX_TABLE_ROWS) {
+              $insertTableRowAtSelection(true);
+              resetSelectedTableColumnWidths();
+            }
+          });
+        }}>
+        <AddRowIcon />
+      </ToolbarButton>
+      <ToolbarButton
+        disabled={!canDeleteRow}
+        label="Delete row"
+        command={(activeEditor) => {
+          activeEditor.update(() => {
+            const selectedTable = getSelectedTableState();
+
+            if (
+              selectedTable &&
+              selectedTable.rows > MIN_TABLE_ROWS &&
+              selectedTable.selectedRowIndex > 0
+            ) {
+              $deleteTableRowAtSelection();
+              resetSelectedTableColumnWidths();
+            }
+          });
+        }}>
+        <DeleteRowIcon />
+      </ToolbarButton>
+    </>
+  );
+}
+
+function getSelectedTableState(): SelectedTableState | null {
+  const tableLocation = getSelectedTableLocation();
+
+  if (!tableLocation) {
+    return null;
+  }
+
+  return {
+    columns: tableLocation.columns,
+    rows: tableLocation.rows,
+    selectedRowIndex: tableLocation.selectedRowIndex,
+  };
+}
+
+function getSelectedTableLocation(): SelectedTableLocation | null {
+  const selection = $getSelection();
+
+  if (!selection) {
+    return null;
+  }
+
+  for (const node of selection.getNodes()) {
+    const cellNode = $getTableCellNodeFromLexicalNode(node);
+
+    if (cellNode) {
+      const tableNode = cellNode.getParents().find((parent): parent is TableNode => parent instanceof TableNode);
+
+      if (!tableNode) {
+        return null;
+      }
+
+      return {
+        columns: tableNode.getColumnCount(),
+        rows: tableNode.getChildrenSize(),
+        selectedRowIndex: $getTableRowIndexFromTableCellNode(cellNode),
+        tableKey: tableNode.getKey(),
+      };
+    }
+  }
+
+  return null;
+}
+
+function resetSelectedTableColumnWidths() {
+  const tableLocation = getSelectedTableLocation();
+
+  if (!tableLocation) {
+    return;
+  }
+
+  const tableNode = $getNodeByKey(tableLocation.tableKey);
+
+  if ($isTableNode(tableNode)) {
+    tableNode.setColWidths(undefined);
+  }
+}
+
+function BlockProtectedNodeKeyboardDeletePlugin() {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(
+    () =>
+      mergeRegister(
+        editor.registerCommand(
+          KEY_BACKSPACE_COMMAND,
+          (event) => blockProtectedKeyboardDelete(event, 'backward'),
+          COMMAND_PRIORITY_CRITICAL
+        ),
+        editor.registerCommand(
+          KEY_DELETE_COMMAND,
+          (event) => blockProtectedKeyboardDelete(event, 'forward'),
+          COMMAND_PRIORITY_CRITICAL
+        ),
+        editor.registerCommand(
+          DELETE_CHARACTER_COMMAND,
+          (isBackward) => shouldBlockProtectedKeyboardDelete(isBackward ? 'backward' : 'forward'),
+          COMMAND_PRIORITY_CRITICAL
+        )
+      ),
+    [editor]
+  );
+
+  return null;
+}
+
+function blockProtectedKeyboardDelete(event: KeyboardEvent, direction: 'backward' | 'forward') {
+  if (!shouldBlockProtectedKeyboardDelete(direction)) {
+    return false;
+  }
+
+  event.preventDefault();
+  return true;
+}
+
+function shouldBlockProtectedKeyboardDelete(direction: 'backward' | 'forward') {
+  const selection = $getSelection();
+
+  if (!selection) {
+    return false;
+  }
+
+  if ($isNodeSelection(selection)) {
+    return selection.getNodes().some(isProtectedStructuralNode);
+  }
+
+  if (!$isRangeSelection(selection)) {
+    return false;
+  }
+
+  if (!selection.isCollapsed()) {
+    return selection.getNodes().some(isProtectedStructuralNode);
+  }
+
+  const selectedTable = getSelectedTableLocation();
+
+  if (selectedTable) {
+    return false;
+  }
+
+  const anchorNode = selection.anchor.getNode();
+
+  if (isProtectedStructuralNode(anchorNode)) {
+    return true;
+  }
+
+  if (
+    direction === 'backward' &&
+    isCollapsedAtStartOfEmptyParagraphAfterProtectedNode(anchorNode, selection.anchor.offset)
+  ) {
+    return true;
+  }
+
+  if (!isSelectionAtNodeBoundary(anchorNode, selection.anchor.offset, direction)) {
+    return false;
+  }
+
+  return getProtectedNodeAcrossBoundary(anchorNode, direction) !== null;
+}
+
+function isCollapsedAtStartOfEmptyParagraphAfterProtectedNode(node: LexicalNode, offset: number) {
+  if (offset !== 0) {
+    return false;
+  }
+
+  const topLevelNode = node.getTopLevelElement();
+
+  if (!$isParagraphNode(topLevelNode) || !topLevelNode.isEmpty()) {
+    return false;
+  }
+
+  return isProtectedStructuralNode(topLevelNode.getPreviousSibling());
+}
+
+function isSelectionAtNodeBoundary(
+  node: LexicalNode,
+  offset: number,
+  direction: 'backward' | 'forward'
+) {
+  const nodeSize = $isElementNode(node) ? node.getChildrenSize() : node.getTextContentSize();
+
+  return direction === 'backward' ? offset === 0 : offset === nodeSize;
+}
+
+function getProtectedNodeAcrossBoundary(
+  node: LexicalNode,
+  direction: 'backward' | 'forward'
+): LexicalNode | null {
+  let currentNode: LexicalNode = node;
+
+  while (true) {
+    const sibling =
+      direction === 'backward'
+        ? currentNode.getPreviousSibling()
+        : currentNode.getNextSibling();
+
+    if (sibling) {
+      return getProtectedEdgeNode(sibling, direction);
+    }
+
+    const parent = currentNode.getParent();
+
+    if (!parent || $isRootNode(parent)) {
+      return null;
+    }
+
+    currentNode = parent;
+  }
+}
+
+function getProtectedEdgeNode(
+  node: LexicalNode,
+  direction: 'backward' | 'forward'
+): LexicalNode | null {
+  if (isProtectedStructuralNode(node)) {
+    return node;
+  }
+
+  if (!$isElementNode(node) || node.isEmpty()) {
+    return null;
+  }
+
+  const child =
+    direction === 'backward'
+      ? node.getLastChild()
+      : node.getFirstChild();
+
+  return child ? getProtectedEdgeNode(child, direction) : null;
+}
+
+function isProtectedStructuralNode(node: LexicalNode | null | undefined) {
+  return $isImageNode(node) || $isTableNode(node);
+}
+
+function TableDeleteOverlayPlugin() {
+  const [editor] = useLexicalComposerContext();
+  const [overlayPosition, setOverlayPosition] = useState<OverlayPosition | null>(null);
+
+  const refreshOverlayPosition = useCallback(() => {
+    const tableLocation = editor.getEditorState().read(getSelectedTableLocation);
+
+    if (!tableLocation) {
+      setOverlayPosition(null);
+      return;
+    }
+
+    const tableElement = editor.getElementByKey(tableLocation.tableKey);
+    const rootElement = editor.getRootElement();
+    const shellElement = rootElement?.closest('.editor-shell');
+
+    if (!tableElement || !(shellElement instanceof HTMLElement)) {
+      setOverlayPosition(null);
+      return;
+    }
+
+    const tableRect = tableElement.getBoundingClientRect();
+    const shellRect = shellElement.getBoundingClientRect();
+
+    setOverlayPosition({
+      tableKey: tableLocation.tableKey,
+      top: Math.max(8, tableRect.top - shellRect.top + 8),
+      right: Math.max(8, shellRect.right - tableRect.right + 8),
+    });
+  }, [editor]);
+
+  useEffect(() => {
+    let frameID = 0;
+
+    const scheduleOverlayRefresh = () => {
+      cancelAnimationFrame(frameID);
+      frameID = requestAnimationFrame(refreshOverlayPosition);
+    };
+
+    scheduleOverlayRefresh();
+
+    const unregisterUpdateListener = editor.registerUpdateListener(scheduleOverlayRefresh);
+    const rootElement = editor.getRootElement();
+
+    rootElement?.addEventListener('scroll', scheduleOverlayRefresh);
+    window.addEventListener('resize', scheduleOverlayRefresh);
+
+    return () => {
+      cancelAnimationFrame(frameID);
+      unregisterUpdateListener();
+      rootElement?.removeEventListener('scroll', scheduleOverlayRefresh);
+      window.removeEventListener('resize', scheduleOverlayRefresh);
+    };
+  }, [editor, refreshOverlayPosition]);
+
+  if (!overlayPosition) {
+    return null;
+  }
+
+  return (
+    <button
+      aria-label="Remove table"
+      className="table-remove-button"
+      title="Remove table"
+      type="button"
+      style={{
+        right: overlayPosition.right,
+        top: overlayPosition.top,
+      }}
+      onMouseDown={(event) => {
+        event.preventDefault();
+      }}
+      onClick={() => {
+        editor.update(() => {
+          const tableNode = $getNodeByKey(overlayPosition.tableKey);
+
+          if ($isTableNode(tableNode)) {
+            tableNode.remove();
+          }
+        });
+        setOverlayPosition(null);
+      }}>
+      x
+    </button>
+  );
+}
+
+function ImageToolbarButton({ disabled }: { disabled?: boolean }) {
   const [editor] = useLexicalComposerContext();
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const insertImage = useCallback(
     (src: string, altText: string) => {
       editor.update(() => {
+        if (getSelectedTableLocation()) {
+          return;
+        }
+
         insertImageOnEmptyLine({ altText, src });
       });
     },
@@ -407,11 +908,14 @@ function ImageToolbarButton() {
     <>
       <button
         className="toolbar-button"
+        disabled={disabled}
         title="Insert image"
         type="button"
         onMouseDown={(event) => {
           event.preventDefault();
-          inputRef.current?.click();
+          if (!disabled) {
+            inputRef.current?.click();
+          }
         }}>
         <ImageIcon />
       </button>
@@ -448,6 +952,10 @@ function Divider() {
 
 function formatHeading(editor: LexicalEditor, tag: 'h2' | 'h3') {
   editor.update(() => {
+    if (getSelectedTableLocation()) {
+      return;
+    }
+
     const selection = $getSelection();
 
     if ($isRangeSelection(selection)) {
@@ -468,19 +976,29 @@ function formatParagraph(editor: LexicalEditor) {
 
 function insertImageOnEmptyLine({ altText, src }: { altText: string; src: string }) {
   const selection = $getSelection();
+  const image = $createImageNode({ altText, src });
+  const nextParagraph = $createParagraphNode();
 
   if ($isRangeSelection(selection) && selection.isCollapsed()) {
     const topLevelNode = selection.anchor.getNode().getTopLevelElement();
 
-    if (topLevelNode && topLevelNode.getTextContentSize() > 0) {
-      selection.insertParagraph();
+    if ($isParagraphNode(topLevelNode) && topLevelNode.isEmpty()) {
+      topLevelNode.replace(image);
+      image.insertAfter(nextParagraph);
+      nextParagraph.selectStart();
+      return;
+    }
+
+    if (topLevelNode) {
+      topLevelNode.insertAfter(image);
+      image.insertAfter(nextParagraph);
+      nextParagraph.selectStart();
+      return;
     }
   }
 
-  const nextParagraph = $createParagraphNode();
-
-  $insertNodes([$createImageNode({ altText, src }), nextParagraph]);
-  nextParagraph.select();
+  $insertNodes([image, nextParagraph]);
+  nextParagraph.selectStart();
 }
 
 function UndoIcon() {
@@ -518,6 +1036,60 @@ function ImageIcon() {
       <rect x="3" y="5" width="18" height="14" rx="2" />
       <circle cx="8" cy="10" r="1.5" />
       <path d="m21 15-5-5L5 19" />
+    </svg>
+  );
+}
+
+function TableIcon() {
+  return (
+    <svg aria-hidden="true" className="toolbar-icon" viewBox="0 0 24 24">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 10h18" />
+      <path d="M3 16h18" />
+      <path d="M9 4v16" />
+      <path d="M15 4v16" />
+    </svg>
+  );
+}
+
+function AddColumnIcon() {
+  return (
+    <svg aria-hidden="true" className="toolbar-icon" viewBox="0 0 24 24">
+      <rect x="4" y="4" width="12" height="16" rx="2" />
+      <path d="M10 4v16" />
+      <path d="M19 8v8" />
+      <path d="M15 12h8" />
+    </svg>
+  );
+}
+
+function DeleteColumnIcon() {
+  return (
+    <svg aria-hidden="true" className="toolbar-icon" viewBox="0 0 24 24">
+      <rect x="4" y="4" width="12" height="16" rx="2" />
+      <path d="M10 4v16" />
+      <path d="M16 12h7" />
+    </svg>
+  );
+}
+
+function AddRowIcon() {
+  return (
+    <svg aria-hidden="true" className="toolbar-icon" viewBox="0 0 24 24">
+      <rect x="4" y="4" width="16" height="12" rx="2" />
+      <path d="M4 10h16" />
+      <path d="M8 20h8" />
+      <path d="M12 16v8" />
+    </svg>
+  );
+}
+
+function DeleteRowIcon() {
+  return (
+    <svg aria-hidden="true" className="toolbar-icon" viewBox="0 0 24 24">
+      <rect x="4" y="4" width="16" height="12" rx="2" />
+      <path d="M4 10h16" />
+      <path d="M8 20h8" />
     </svg>
   );
 }
@@ -707,6 +1279,10 @@ function serializeEditorState(editorState: EditorState, editor: LexicalEditor) {
 const lexicalTheme = {
   paragraph: 'editor-paragraph',
   quote: 'editor-quote',
+  table: 'editor-table',
+  tableCell: 'editor-table-cell',
+  tableCellHeader: 'editor-table-cell-header',
+  tableScrollableWrapper: 'editor-table-scrollable-wrapper',
   text: {
     bold: 'editor-text-bold',
     italic: 'editor-text-italic',
@@ -887,12 +1463,17 @@ const styles = `
     opacity: 0.68;
   }
 
+  .toolbar-button:disabled {
+    cursor: default;
+    opacity: 0.42;
+  }
+
   .sync-button-saving .toolbar-icon {
     animation: sync-spin 0.9s linear infinite;
   }
 
-  .toolbar-button:hover,
-  .toolbar-button:focus-visible,
+  .toolbar-button:not(:disabled):hover,
+  .toolbar-button:not(:disabled):focus-visible,
   .sync-button:not(:disabled):hover,
   .sync-button:not(:disabled):focus-visible {
     background: rgba(10, 126, 164, 0.12);
@@ -970,6 +1551,61 @@ const styles = `
   .image-remove-button:focus-visible {
     background: rgba(180, 35, 24, 0.9);
     outline: none;
+  }
+
+  .table-remove-button {
+    position: absolute;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    border-radius: 999px;
+    color: #ffffff;
+    background: rgba(17, 24, 28, 0.72);
+    font: 700 16px/1 system-ui, sans-serif;
+    cursor: pointer;
+    transition: background 160ms ease;
+  }
+
+  .table-remove-button:hover,
+  .table-remove-button:focus-visible {
+    background: rgba(180, 35, 24, 0.9);
+    outline: none;
+  }
+
+  .editor-table-scrollable-wrapper {
+    margin: 16px 0;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .editor-table {
+    width: 100% !important;
+    min-width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .editor-table-cell,
+  .editor-table-cell-header {
+    min-width: 96px;
+    border: 1px solid #c9d1d7;
+    padding: 8px;
+    vertical-align: top;
+  }
+
+  .dark .editor-table-cell,
+  .dark .editor-table-cell-header {
+    border-color: #343a3e;
+  }
+
+  .editor-table-cell-header {
+    background: transparent;
+    font-weight: inherit;
   }
 
   .format-italic {

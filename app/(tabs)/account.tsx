@@ -44,6 +44,7 @@ type Plan = {
   name: string;
   price: Money;
   billingPeriod: BillingPeriod;
+  benefits: string[];
   supportsRenewal: boolean;
 };
 
@@ -296,6 +297,9 @@ export default function AccountScreen() {
                 <ThemedText style={[styles.planMetaText, { color: themeColors.secondaryControl }]}>
                   {t('account.planDueDateLabel')} {dueDate}
                 </ThemedText>
+                {accountSubscription?.plan.benefits.length ? (
+                  <PlanBenefits benefits={accountSubscription.plan.benefits} />
+                ) : null}
               </View>
               <View style={styles.planActions}>
                 {accountSubscription?.plan.supportsRenewal ? (
@@ -559,8 +563,24 @@ function planFromApi(plan: PlanResponse): Plan {
     name: plan.name,
     price: plan.price,
     billingPeriod: plan.billing_period,
+    benefits: benefitsForPlan(plan),
     supportsRenewal: plan.supports_renewal,
   };
+}
+
+function benefitsForPlan(plan: PlanResponse) {
+  const planKey = plan.id.toLowerCase();
+  const planName = plan.name.toLowerCase();
+
+  if (planKey === 'creator' || planName === 'creator') {
+    return ['10 MB per site', '3 sites'];
+  }
+
+  if (planKey === 'pro' || planName === 'pro') {
+    return ['100 MB per site', '50 sites'];
+  }
+
+  return [];
 }
 
 function formatDate(date: string | Date, locale: string) {
@@ -659,11 +679,29 @@ function PlanOption({
         <ThemedText style={[styles.planMetaText, { color: themeColors.secondaryControl }]}>
           {formatRecurringPrice(plan.price, plan.billingPeriod, locale, t)}
         </ThemedText>
+        {plan.benefits.length > 0 ? <PlanBenefits benefits={plan.benefits} /> : null}
       </View>
       <ThemedText style={[styles.planMetaText, { color: themeColors.secondaryControl }]}>
         {isCurrentPlan ? t('account.currentPlan') : t('account.selectPlan')}
       </ThemedText>
     </Pressable>
+  );
+}
+
+function PlanBenefits({ benefits }: { benefits: string[] }) {
+  const colorScheme = useColorScheme() ?? 'light';
+  const themeColors = Colors[colorScheme];
+
+  return (
+    <View style={styles.planBenefits}>
+      {benefits.map((benefit) => (
+        <ThemedText
+          key={benefit}
+          style={[styles.planBenefitText, { color: themeColors.secondaryControl }]}>
+          {benefit}
+        </ThemedText>
+      ))}
+    </View>
   );
 }
 
@@ -759,6 +797,14 @@ const styles = StyleSheet.create({
   planOptionText: {
     flex: 1,
     gap: 2,
+  },
+  planBenefits: {
+    gap: 2,
+    paddingTop: 4,
+  },
+  planBenefitText: {
+    fontSize: 12,
+    lineHeight: 16,
   },
   button: {
     minHeight: 44,
