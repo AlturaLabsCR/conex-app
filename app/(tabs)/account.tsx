@@ -572,6 +572,10 @@ function benefitsForPlan(plan: PlanResponse) {
   const planKey = plan.id.toLowerCase();
   const planName = plan.name.toLowerCase();
 
+  if (planKey === 'free' || planName === 'free') {
+    return ['1 MB per site', '1 site'];
+  }
+
   if (planKey === 'creator' || planName === 'creator') {
     return ['10 MB per site', '3 sites'];
   }
