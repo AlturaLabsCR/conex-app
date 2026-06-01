@@ -1,15 +1,13 @@
-import { useRef, useState, type RefObject } from 'react';
+import { useCallback, useState } from 'react';
 import {
-  Modal,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   TextInput,
   View,
 } from 'react-native';
-import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
 import {
+  API_BASE_URL,
   capturePlanOrder,
   createPlanOrder,
   listPlans,
@@ -26,6 +24,10 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { TranslationKey, useTranslation } from '@/i18n';
+
+// Platform-only module: Metro resolves index.web.tsx or index.native.tsx here.
+// eslint-disable-next-line import/no-unresolved
+import { PayPalCheckoutModal } from '@/components/paypal-checkout-modal';
 
 type BillingPeriod = {
   unit: string;
@@ -49,20 +51,6 @@ type AccountSubscriptionResponse = {
   status: string;
   dueDate: string | null;
   plan: Plan;
-};
-
-type PayPalWebViewMessage = {
-  id: string;
-  type: 'create-order' | 'capture-order';
-  payload?: {
-    orderID?: string;
-  };
-} | {
-  type: 'log';
-  payload?: {
-    level?: string;
-    message?: string;
-  };
 };
 
 export default function AccountScreen() {
@@ -92,7 +80,6 @@ export default function AccountScreen() {
   const [isLoadingPlans, setIsLoadingPlans] = useState(false);
   const [paymentPlan, setPaymentPlan] = useState<Plan | null>(null);
   const [paymentError, setPaymentError] = useState('');
-  const webViewRef = useRef<WebView>(null);
 
   const themeColors = Colors[colorScheme];
   const isLoggedIn = Boolean(email);
@@ -231,56 +218,25 @@ export default function AccountScreen() {
     setPaymentPlan(plan);
   }
 
-  async function handlePaymentMessage(event: WebViewMessageEvent) {
-    let message: PayPalWebViewMessage;
-
-    try {
-      message = JSON.parse(event.nativeEvent.data) as PayPalWebViewMessage;
-    } catch {
-      return;
-    }
-
-    if (message.type === 'log') {
-      console.log(`[PayPal WebView:${message.payload?.level ?? 'log'}] ${message.payload?.message ?? ''}`);
-      return;
-    }
-
+  const handleCreatePaymentOrder = useCallback(async () => {
     if (!paymentPlan) {
-      respondToPayPalMessage(message.id, false, { message: t('account.paymentUnavailable') });
-      return;
+      throw new Error(t('account.paymentUnavailable'));
     }
 
-    try {
-      if (message.type === 'create-order') {
-        const order = await createPlanOrder(paymentPlan.id);
-        respondToPayPalMessage(message.id, true, { id: order.id });
-      } else if (message.type === 'capture-order') {
-        const orderID = message.payload?.orderID;
+    const order = await createPlanOrder(paymentPlan.id);
 
-        if (!orderID) {
-          throw new Error(t('account.paymentUnavailable'));
-        }
+    return order.id;
+  }, [paymentPlan, t]);
 
-        await capturePlanOrder(orderID);
-        respondToPayPalMessage(message.id, true, {});
-        setPaymentPlan(null);
-        setArePlansVisible(false);
-        await refreshAccount();
-      }
-    } catch (paymentRequestError) {
-      const messageText = errorMessage(paymentRequestError);
-      setPaymentError(messageText);
-      respondToPayPalMessage(message.id, false, { message: messageText });
-    }
-  }
-
-  function respondToPayPalMessage(id: string, ok: boolean, payload: Record<string, unknown>) {
-    const script = `window.__paypalNativeResponse(${JSON.stringify(id)}, ${JSON.stringify(
-      ok
-    )}, ${JSON.stringify(payload)}); true;`;
-
-    webViewRef.current?.injectJavaScript(script);
-  }
+  const handleCapturePaymentOrder = useCallback(
+    async (orderID: string) => {
+      await capturePlanOrder(orderID);
+      setPaymentPlan(null);
+      setArePlansVisible(false);
+      await refreshAccount();
+    },
+    [refreshAccount]
+  );
 
   return (
     <ThemedScrollView
@@ -494,11 +450,17 @@ export default function AccountScreen() {
       </ThemedView>
       {paymentPlan ? (
         <PayPalCheckoutModal
+          backgroundColor={themeColors.background}
           clientID={paypalClientID}
+          currency={paymentPlan.price.currency}
+          merchantBaseURL={API_BASE_URL}
+          onCaptureOrder={handleCapturePaymentOrder}
           onClose={() => setPaymentPlan(null)}
-          onMessage={handlePaymentMessage}
-          plan={paymentPlan}
-          refObject={webViewRef}
+          onCreateOrder={handleCreatePaymentOrder}
+          onLog={(level, message) => {
+            console.log(`[PayPal:${level}] ${message}`);
+          }}
+          textColor={themeColors.text}
           themeColors={themeColors}
           title={t('account.payWithPayPal')}
         />
@@ -705,208 +667,6 @@ function PlanOption({
   );
 }
 
-function PayPalCheckoutModal({
-  clientID,
-  onClose,
-  onMessage,
-  plan,
-  refObject,
-  themeColors,
-  title,
-}: {
-  clientID: string;
-  onClose: () => void;
-  onMessage: (event: WebViewMessageEvent) => void;
-  plan: Plan;
-  refObject: RefObject<WebView | null>;
-  themeColors: typeof Colors.light;
-  title: string;
-}) {
-  const html = paypalCheckoutHTML({
-    clientID,
-    currency: plan.price.currency,
-    textColor: themeColors.text,
-    backgroundColor: themeColors.background,
-  });
-
-  return (
-    <Modal animationType="slide" onRequestClose={onClose} visible>
-      <SafeAreaView style={[styles.paymentModal, { backgroundColor: themeColors.background }]}>
-        <View style={[styles.paymentHeader, { borderBottomColor: themeColors.border }]}>
-          <Pressable onPress={onClose} style={styles.paymentCloseButton}>
-            <ThemedText type="defaultSemiBold">x</ThemedText>
-          </Pressable>
-          <ThemedText type="defaultSemiBold" style={styles.paymentTitle}>
-            {title}
-          </ThemedText>
-          <View style={styles.paymentHeaderSpacer} />
-        </View>
-        <WebView
-          domStorageEnabled
-          javaScriptCanOpenWindowsAutomatically
-          javaScriptEnabled
-          onError={(event) => {
-            console.warn('[PayPal WebView:error]', event.nativeEvent);
-          }}
-          onHttpError={(event) => {
-            console.warn('[PayPal WebView:http-error]', event.nativeEvent);
-          }}
-          onMessage={onMessage}
-          originWhitelist={['*']}
-          ref={refObject}
-          setSupportMultipleWindows={false}
-          sharedCookiesEnabled
-          source={{ html }}
-          style={styles.paymentWebView}
-          thirdPartyCookiesEnabled
-        />
-      </SafeAreaView>
-    </Modal>
-  );
-}
-
-function paypalCheckoutHTML({
-  backgroundColor,
-  clientID,
-  currency,
-  textColor,
-}: {
-  backgroundColor: string;
-  clientID: string;
-  currency: string;
-  textColor: string;
-}) {
-  return `<!doctype html>
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <script>
-      function postNativeLog(level, message) {
-        if (!window.ReactNativeWebView) {
-          return;
-        }
-
-        window.ReactNativeWebView.postMessage(JSON.stringify({
-          type: 'log',
-          payload: { level: level, message: String(message) }
-        }));
-      }
-
-      ['log', 'warn', 'error'].forEach(function(level) {
-        const original = console[level];
-
-        console[level] = function() {
-          const message = Array.prototype.slice.call(arguments).map(function(value) {
-            if (value instanceof Error) {
-              return value.message;
-            }
-
-            if (typeof value === 'object') {
-              try {
-                return JSON.stringify(value);
-              } catch {
-                return String(value);
-              }
-            }
-
-            return String(value);
-          }).join(' ');
-
-          postNativeLog(level, message);
-          original.apply(console, arguments);
-        };
-      });
-
-      window.onerror = function(message, source, line, column) {
-        postNativeLog('error', message + ' at ' + source + ':' + line + ':' + column);
-      };
-
-      window.onunhandledrejection = function(event) {
-        postNativeLog('error', event.reason && event.reason.message ? event.reason.message : event.reason);
-      };
-    </script>
-    <script src="https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(
-      clientID
-    )}&currency=${encodeURIComponent(currency)}"></script>
-    <style>
-      html, body {
-        background: ${backgroundColor};
-        color: ${textColor};
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        margin: 0;
-        min-height: 100%;
-      }
-      #paypal-button-container {
-        padding: 24px 16px;
-      }
-      #message {
-        padding: 0 16px;
-        text-align: center;
-      }
-    </style>
-  </head>
-  <body>
-    <div id="paypal-button-container"></div>
-    <div id="message"></div>
-    <script>
-      const pending = {};
-
-      function callNative(type, payload) {
-        const id = String(Date.now()) + Math.random().toString(16).slice(2);
-
-        window.ReactNativeWebView.postMessage(JSON.stringify({ id, type, payload }));
-
-        return new Promise((resolve, reject) => {
-          pending[id] = { resolve, reject };
-        });
-      }
-
-      window.__paypalNativeResponse = function(id, ok, payload) {
-        const callback = pending[id];
-
-        if (!callback) {
-          return;
-        }
-
-        delete pending[id];
-
-        if (ok) {
-          callback.resolve(payload);
-        } else {
-          callback.reject(new Error(payload && payload.message ? payload.message : 'Payment failed.'));
-        }
-      };
-
-      paypal.Buttons({
-        createOrder: function() {
-          console.log('createOrder requested');
-          return callNative('create-order', {}).then(function(order) {
-            console.log('createOrder received ' + order.id);
-            return order.id;
-          });
-        },
-        onApprove: function(data) {
-          console.log('onApprove for order ' + data.orderID);
-          return callNative('capture-order', { orderID: data.orderID });
-        },
-        onCancel: function() {
-          console.log('payment cancelled');
-          document.getElementById('message').textContent = '';
-        },
-        onError: function(error) {
-          console.error(error && error.message ? error.message : error);
-          document.getElementById('message').textContent = error.message || 'Payment failed.';
-        }
-      }).render('#paypal-button-container').then(function() {
-        console.log('PayPal buttons rendered');
-      }).catch(function(error) {
-        console.error(error && error.message ? error.message : error);
-      });
-    </script>
-  </body>
-</html>`;
-}
-
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Request failed.';
 }
@@ -1034,30 +794,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 12,
     lineHeight: 18,
-  },
-  paymentModal: {
-    flex: 1,
-  },
-  paymentHeader: {
-    minHeight: 54,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-  },
-  paymentCloseButton: {
-    width: 54,
-    height: 54,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  paymentTitle: {
-    flex: 1,
-    textAlign: 'center',
-  },
-  paymentHeaderSpacer: {
-    width: 54,
-  },
-  paymentWebView: {
-    flex: 1,
   },
 });
