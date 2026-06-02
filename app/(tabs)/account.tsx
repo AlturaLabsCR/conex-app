@@ -156,6 +156,11 @@ export default function AccountScreen() {
     setIsChangingEmail(true);
   }
 
+  function handleEditLoginEmail() {
+    setCodeInput('');
+    setIsCodeStep(false);
+  }
+
   async function handleLogout() {
     await logout();
     setEmailInput('');
@@ -381,10 +386,14 @@ export default function AccountScreen() {
             {error ? <BodyNotice message={error} variant="error" /> : null}
             {isCodeStep ? (
               <>
-                <BodyNotice
-                  message={t('account.codeSent')}
-                  title={t('account.codeSentNoticeTitle')}
-                  variant="note"
+                <CodeSentNotice
+                  email={emailInput}
+                  isSubmitting={isSubmitting}
+                  onChangeEmail={handleEditLoginEmail}
+                  onResend={() => {
+                    void handleLogin();
+                  }}
+                  t={t}
                 />
                 <TextInput
                   autoCapitalize="none"
@@ -470,6 +479,81 @@ export default function AccountScreen() {
         />
       ) : null}
     </ThemedScrollView>
+  );
+}
+
+function CodeSentNotice({
+  email,
+  isSubmitting,
+  onChangeEmail,
+  onResend,
+  t,
+}: {
+  email: string;
+  isSubmitting: boolean;
+  onChangeEmail: () => void;
+  onResend: () => void;
+  t: (key: TranslationKey) => string;
+}) {
+  const colorScheme = useColorScheme() ?? 'light';
+  const themeColors = Colors[colorScheme];
+
+  return (
+    <View
+      style={[
+        styles.codeNotice,
+        {
+          backgroundColor: colorScheme === 'dark' ? '#123142' : '#EAF4FB',
+          borderColor: colorScheme === 'dark' ? '#65B7E6' : '#5AA6D6',
+        },
+      ]}>
+      <ThemedText
+        type="defaultSemiBold"
+        style={[styles.codeNoticeTitle, { color: colorScheme === 'dark' ? '#D9F0FF' : '#0F4F73' }]}>
+        {t('account.codeSentNoticeTitle')}
+      </ThemedText>
+      <ThemedText style={[styles.codeNoticeMessage, { color: colorScheme === 'dark' ? '#D9F0FF' : '#0F4F73' }]}>
+        {t('account.codeSent').replace('{{email}}', email)}
+      </ThemedText>
+      <View style={styles.codeNoticeActions}>
+        <InlineActionText
+          disabled={isSubmitting}
+          label={t('account.changeEmail')}
+          onPress={onChangeEmail}
+          textColor={themeColors.control}
+        />
+        <InlineActionText
+          disabled={isSubmitting}
+          label={t('account.resendCode')}
+          onPress={onResend}
+          textColor={themeColors.control}
+        />
+      </View>
+    </View>
+  );
+}
+
+function InlineActionText({
+  disabled,
+  label,
+  onPress,
+  textColor,
+}: {
+  disabled?: boolean;
+  label: string;
+  onPress: () => void;
+  textColor: string;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({ opacity: disabled ? 0.45 : pressed ? 0.7 : 1 })}>
+      <ThemedText type="defaultSemiBold" style={[styles.inlineActionText, { color: textColor }]}>
+        {label}
+      </ThemedText>
+    </Pressable>
   );
 }
 
@@ -738,6 +822,28 @@ const styles = StyleSheet.create({
   loginHeading: {
     textAlign: 'center',
     paddingBottom: 12,
+  },
+  codeNotice: {
+    width: '100%',
+    borderLeftWidth: 4,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  codeNoticeTitle: {
+    textTransform: 'uppercase',
+  },
+  codeNoticeMessage: {
+    lineHeight: 22,
+  },
+  codeNoticeActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  inlineActionText: {
+    textDecorationLine: 'underline',
   },
   input: {
     width: '100%',

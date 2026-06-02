@@ -6,6 +6,7 @@ import {
   Animated,
   Easing,
   Keyboard,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -336,6 +337,7 @@ function SiteCard({
   const colorScheme = useColorScheme() ?? 'light';
   const themeColors = Colors[colorScheme];
   const { locale, t } = useTranslation();
+  const isWeb = Platform.OS === 'web';
   const swipeableRef = useRef<Swipeable>(null);
   const [siteError, setSiteError] = useState('');
   const [isAddingTag, setIsAddingTag] = useState(false);
@@ -427,6 +429,16 @@ function SiteCard({
 
   function confirmDelete() {
     swipeableRef.current?.close();
+
+    if (isWeb && typeof window !== 'undefined' && window.confirm(t('sites.deleteMessage'))) {
+      void deleteSite();
+      return;
+    }
+
+    if (isWeb) {
+      return;
+    }
+
     Alert.alert(t('sites.deleteTitle'), t('sites.deleteMessage'), [
       { text: t('sites.deleteCancel'), style: 'cancel' },
       {
@@ -479,8 +491,7 @@ function SiteCard({
     </Pressable>
   );
 
-  return (
-    <Swipeable ref={swipeableRef} renderRightActions={renderRightActions}>
+  const cardContent = (
       <View
         style={[
           styles.card,
@@ -542,9 +553,9 @@ function SiteCard({
           accessibilityRole="button"
           onPress={copyUrl}
           style={({ pressed }) => [styles.urlButton, { opacity: pressed ? 0.7 : 1 }]}>
-          <ThemedText style={[styles.urlText, { color: themeColors.secondaryControl }]}>
-            {site.url}
-          </ThemedText>
+            <ThemedText style={[styles.urlText, { color: themeColors.secondaryControl }]}>
+              {site.url}
+            </ThemedText>
           <IconSymbol size={18} name="doc.on.doc" color={themeColors.secondaryControl} />
         </Pressable>
 
@@ -596,24 +607,56 @@ function SiteCard({
             </Pressable>
           )}
         </View>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onOpen}
-          style={({ pressed }) => [
-            styles.editButton,
-            {
-              borderColor: themeColors.secondaryControl,
-              opacity: pressed ? 0.8 : 1,
-            },
-          ]}>
-          <IconSymbol name="pencil" size={18} color={themeColors.secondaryControl} />
-          <ThemedText
-            type="defaultSemiBold"
-            style={[styles.editButtonText, { color: themeColors.secondaryControl }]}>
-            {t('sites.edit')}
-          </ThemedText>
-        </Pressable>
+        <View style={styles.cardActions}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onOpen}
+            style={({ pressed }) => [
+              styles.editButton,
+              {
+                borderColor: themeColors.secondaryControl,
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}>
+            <IconSymbol name="pencil" size={18} color={themeColors.secondaryControl} />
+            <ThemedText
+              type="defaultSemiBold"
+              style={[styles.editButtonText, { color: themeColors.secondaryControl }]}>
+              {t('sites.edit')}
+            </ThemedText>
+          </Pressable>
+          {isWeb ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={isDeleting}
+              onPress={confirmDelete}
+              style={({ pressed }) => [
+                styles.webDeleteButton,
+                { opacity: isDeleting ? 0.6 : pressed ? 0.8 : 1 },
+              ]}>
+              {isDeleting ? (
+                <ThemedActivityIndicator size="small" />
+              ) : (
+                <>
+                  <IconSymbol name="trash" size={18} color="#ffffff" />
+                  <ThemedText type="defaultSemiBold" style={styles.deleteActionText}>
+                    {t('sites.delete')}
+                  </ThemedText>
+                </>
+              )}
+            </Pressable>
+          ) : null}
+        </View>
       </View>
+  );
+
+  if (isWeb) {
+    return cardContent;
+  }
+
+  return (
+    <Swipeable ref={swipeableRef} renderRightActions={renderRightActions}>
+      {cardContent}
     </Swipeable>
   );
 }
@@ -842,8 +885,8 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   editButton: {
+    flex: 1,
     minHeight: 40,
-    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -855,6 +898,21 @@ const styles = StyleSheet.create({
   },
   editButtonText: {
     textAlign: 'center',
+  },
+  cardActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  webDeleteButton: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 8,
+    backgroundColor: '#c62828',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
   },
   visibilityPill: {
     flexDirection: 'row',

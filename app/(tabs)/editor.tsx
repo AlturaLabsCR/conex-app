@@ -26,6 +26,7 @@ export default function EditorScreen() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [sitesRevision, setSitesRevision] = useState(0);
 
   const selectedPath = useMemo(() => {
     if (Array.isArray(sitePath)) {
@@ -35,51 +36,57 @@ export default function EditorScreen() {
     return sitePath;
   }, [sitePath]);
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadSite = useCallback(async (isMounted: () => boolean = () => true) => {
+    setIsLoading(true);
+    setError('');
 
-    async function loadSite() {
-      setIsLoading(true);
-      setError('');
+    try {
+      const sites = await siteRepository.listSites();
+      const selectedSite = selectedPath ? await siteRepository.getSite(selectedPath) : null;
+      const fallbackPath = selectedSite
+        ? selectedSite.path
+        : sites.find((availableSite) => availableSite.path !== selectedPath)?.path;
+      const nextSite = selectedSite ?? (fallbackPath ? await siteRepository.getSite(fallbackPath) : null);
 
-      try {
-        const sites = await siteRepository.listSites();
-        const fallbackPath = sites[0]?.path;
-        const nextSite = selectedPath
-          ? await siteRepository.getSite(selectedPath)
-          : fallbackPath
-            ? await siteRepository.getSite(fallbackPath)
-            : null;
+      const localDraftHtml = nextSite
+        ? await siteDraftRepository.getSiteDraft(nextSite.sub, nextSite.path)
+        : null;
 
-        const localDraftHtml = nextSite
-          ? await siteDraftRepository.getSiteDraft(nextSite.sub, nextSite.path)
-          : null;
-
-        if (isMounted) {
-          setSite(nextSite);
-          setDraftHtml(localDraftHtml ?? nextSite?.contentHtml ?? '');
-          setSavedHtml(nextSite?.contentHtml ?? '');
-        }
-      } catch (loadError) {
-        if (isMounted) {
-          setError(loadError instanceof Error ? loadError.message : 'Unable to load site.');
-          setSite(null);
-          setDraftHtml('');
-          setSavedHtml('');
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+      if (isMounted()) {
+        setSite(nextSite);
+        setDraftHtml(localDraftHtml ?? nextSite?.contentHtml ?? '');
+        setSavedHtml(nextSite?.contentHtml ?? '');
+      }
+    } catch (loadError) {
+      if (isMounted()) {
+        setError(loadError instanceof Error ? loadError.message : 'Unable to load site.');
+        setSite(null);
+        setDraftHtml('');
+        setSavedHtml('');
+      }
+    } finally {
+      if (isMounted()) {
+        setIsLoading(false);
       }
     }
+  }, [selectedPath]);
 
-    loadSite();
+  useEffect(() => {
+    let isMounted = true;
+    void loadSite(() => isMounted);
 
     return () => {
       isMounted = false;
     };
-  }, [selectedPath]);
+  }, [loadSite, sitesRevision]);
+
+  useEffect(
+    () =>
+      siteRepository.subscribe(() => {
+        setSitesRevision((revision) => revision + 1);
+      }),
+    []
+  );
 
   const isDirty = draftHtml !== savedHtml;
 
@@ -98,13 +105,15 @@ export default function EditorScreen() {
         await siteDraftRepository.deleteSiteDraft(site.sub, site.path);
         setSite(syncedSite);
         setSavedHtml(draftHtml);
+      } else {
+        await loadSite();
       }
     } catch (syncError) {
       setError(syncError instanceof Error ? syncError.message : 'Unable to sync changes.');
     } finally {
       setIsSaving(false);
     }
-  }, [draftHtml, isDirty, site]);
+  }, [draftHtml, isDirty, loadSite, site]);
 
   const persistLocalDraft = useCallback(
     async (nextHtml: string) => {

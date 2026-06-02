@@ -8,8 +8,17 @@ export interface SiteRepository {
   getSite(path: string): Promise<SiteWithContent | null>;
   deleteSite(path: string): Promise<void>;
   saveSiteContent(path: string, contentHtml: string): Promise<SiteWithContent | null>;
+  subscribe(listener: () => void): () => void;
   updateSiteTags(path: string, tags: string[]): Promise<void>;
   updateSiteVisibility(path: string, isPublic: boolean): Promise<void>;
+}
+
+const siteChangeListeners = new Set<() => void>();
+
+function notifySitesChanged() {
+  siteChangeListeners.forEach((listener) => {
+    listener();
+  });
 }
 
 function siteFromApi(site: conexApi.SiteResponse): Site {
@@ -40,6 +49,8 @@ export const siteRepository: SiteRepository = {
       tags: [],
     });
 
+    notifySitesChanged();
+
     return siteFromApi(site);
   },
 
@@ -65,19 +76,39 @@ export const siteRepository: SiteRepository = {
 
   async deleteSite(path) {
     await conexApi.deleteSite(path);
+    notifySitesChanged();
   },
 
   async saveSiteContent(path, contentHtml) {
-    await conexApi.updateSite(path, { html: contentHtml });
+    try {
+      await conexApi.updateSite(path, { html: contentHtml });
+    } catch (error) {
+      if (error instanceof conexApi.ConexApiError && error.status === 404) {
+        notifySitesChanged();
+        return null;
+      }
+
+      throw error;
+    }
 
     return siteRepository.getSite(path);
   },
 
+  subscribe(listener) {
+    siteChangeListeners.add(listener);
+
+    return () => {
+      siteChangeListeners.delete(listener);
+    };
+  },
+
   async updateSiteTags(path, tags) {
     await conexApi.updateSite(path, { tags });
+    notifySitesChanged();
   },
 
   async updateSiteVisibility(path, isPublic) {
     await conexApi.updateSite(path, { public: isPublic });
+    notifySitesChanged();
   },
 };

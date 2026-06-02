@@ -1,9 +1,12 @@
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html';
+import { LinkNode, TOGGLE_LINK_COMMAND } from '@lexical/link';
 import { AutoFocusPlugin } from '@lexical/react/LexicalAutoFocusPlugin';
+import { ClickableLinkPlugin } from '@lexical/react/LexicalClickableLinkPlugin';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
+import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
@@ -25,6 +28,7 @@ import {
 } from '@lexical/table';
 import {
   $createParagraphNode,
+  $createTextNode,
   $applyNodeReplacement,
   $getNodeByKey,
   $getRoot,
@@ -101,7 +105,7 @@ export function RichTextEditorContent({
   const initialConfig = useMemo(
     () => ({
       namespace: 'ConexEditor',
-      nodes: [HeadingNode, QuoteNode, TableNode, TableRowNode, TableCellNode, ImageNode],
+      nodes: [HeadingNode, QuoteNode, TableNode, TableRowNode, TableCellNode, LinkNode, ImageNode],
       theme: lexicalTheme,
       onError(error: Error) {
         throw error;
@@ -155,6 +159,14 @@ export function RichTextEditorContent({
           ErrorBoundary={LexicalErrorBoundary}
         />
         <HistoryPlugin />
+        <LinkPlugin
+          attributes={{
+            rel: 'noopener noreferrer',
+            target: '_blank',
+          }}
+          validateUrl={isSafeLinkUrl}
+        />
+        <ClickableLinkPlugin />
         <TablePlugin hasHorizontalScroll />
         <BlockProtectedNodeKeyboardDeletePlugin />
         <TableDeleteOverlayPlugin />
@@ -393,6 +405,7 @@ function Toolbar({
           </ToolbarButton>
           <Divider />
           <ImageToolbarButton disabled={isTableSelected} />
+          <LinkToolbarButton disabled={isTableSelected} />
           <Divider />
           <ToolbarButton
             disabled={isTableSelected}
@@ -949,6 +962,77 @@ function ImageToolbarButton({ disabled }: { disabled?: boolean }) {
   );
 }
 
+function LinkToolbarButton({ disabled }: { disabled?: boolean }) {
+  const [editor] = useLexicalComposerContext();
+
+  const insertLink = useCallback(() => {
+    const name = window.prompt('Link name');
+
+    if (!name?.trim()) {
+      return;
+    }
+
+    const url = normalizeLinkUrl(window.prompt('Link URL') ?? '');
+
+    if (!url) {
+      return;
+    }
+
+    editor.update(() => {
+      const textNode = $createTextNode(name.trim());
+
+      $insertNodes([textNode]);
+      textNode.select(0, textNode.getTextContentSize());
+      editor.dispatchCommand(TOGGLE_LINK_COMMAND, {
+        rel: 'noopener noreferrer',
+        target: '_blank',
+        url,
+      });
+      textNode.selectNext();
+    });
+  }, [editor]);
+
+  return (
+    <button
+      className="toolbar-button"
+      disabled={disabled}
+      title="Insert link"
+      type="button"
+      onMouseDown={(event) => {
+        event.preventDefault();
+        if (!disabled) {
+          insertLink();
+        }
+      }}>
+      <LinkIcon />
+    </button>
+  );
+}
+
+function normalizeLinkUrl(url: string) {
+  const trimmedUrl = url.trim();
+
+  if (!trimmedUrl) {
+    return '';
+  }
+
+  const normalizedUrl = /^[a-z][a-z\d+.-]*:/i.test(trimmedUrl)
+    ? trimmedUrl
+    : `https://${trimmedUrl}`;
+
+  return isSafeLinkUrl(normalizedUrl) ? normalizedUrl : '';
+}
+
+function isSafeLinkUrl(url: string) {
+  try {
+    const parsedUrl = new URL(url);
+
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:' || parsedUrl.protocol === 'mailto:';
+  } catch {
+    return false;
+  }
+}
+
 function Divider() {
   return <div className="toolbar-divider" />;
 }
@@ -1047,6 +1131,15 @@ function ImageIcon() {
       <rect x="3" y="5" width="18" height="14" rx="2" />
       <circle cx="8" cy="10" r="1.5" />
       <path d="m21 15-5-5L5 19" />
+    </svg>
+  );
+}
+
+function LinkIcon() {
+  return (
+    <svg aria-hidden="true" className="toolbar-icon" viewBox="0 0 24 24">
+      <path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1" />
+      <path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1" />
     </svg>
   );
 }
@@ -1720,6 +1813,22 @@ const styles = `
 
   .editor-text-underline {
     text-decoration: underline;
+  }
+
+  .editor-input a {
+    position: relative;
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .editor-input a[target="_blank"]::after {
+    display: inline-block;
+    margin-left: 2px;
+    font-size: 0.72em;
+    line-height: 1;
+    vertical-align: super;
+    content: "\\2197";
   }
 
   .hide-toolbar-scrollbar .toolbar-tools {

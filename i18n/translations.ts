@@ -33,7 +33,8 @@ export const translations = {
     'account.emailPlaceholder': 'Email',
     'account.codePlaceholder': 'Code',
     'account.codeSentNoticeTitle': 'Note',
-    'account.codeSent': 'We sent a code to your email address. Enter it here to continue.',
+    'account.codeSent': 'Email sent to {{email}}. Enter the code here to continue.',
+    'account.resendCode': 'Resend',
     'account.confirmationEmailNotice': 'A confirmation email will be sent to your email address.',
     'account.legalPrefix': 'By continuing you agree to the ',
     'account.legalTerms': 'Terms of Service',
@@ -110,7 +111,8 @@ export const translations = {
     'account.codePlaceholder': 'Código',
     'account.codeSentNoticeTitle': 'Nota',
     'account.codeSent':
-      'Enviamos un código a tu correo electrónico. Ingrésalo aquí para continuar.',
+      'Correo enviado a {{email}}. Ingresa el código aquí para continuar.',
+    'account.resendCode': 'Reenviar',
     'account.confirmationEmailNotice':
       'Enviaremos un correo de confirmación a tu dirección de correo.',
     'account.legalPrefix': 'Al continuar aceptas los ',
