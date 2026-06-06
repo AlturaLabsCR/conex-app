@@ -30,6 +30,8 @@ import type { Site } from '@/features/sites/types';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTranslation } from '@/i18n';
 
+const TAG_MAX_LENGTH = 16;
+
 export default function SitesScreen() {
   const { t } = useTranslation();
   const { email } = useAuth();
@@ -574,6 +576,7 @@ function SiteCard({
               <TextInput
                 autoCapitalize="none"
                 autoCorrect={false}
+                maxLength={TAG_MAX_LENGTH}
                 onChangeText={setNewTag}
                 onSubmitEditing={addTag}
                 placeholder={t('sites.tagPlaceholder')}
@@ -727,7 +730,7 @@ function normalizeTag(tag: string) {
 }
 
 function formatTag(tag: string) {
-  const normalizedTag = normalizeTag(tag);
+  const normalizedTag = normalizeTag(tag).slice(0, TAG_MAX_LENGTH);
   return normalizedTag ? `#${normalizedTag}` : '';
 }
 
