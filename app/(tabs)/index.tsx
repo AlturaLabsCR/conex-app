@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 
-import { API_BASE_URL } from '@/api/conex-api';
+import { API_BASE_URL, isAuthenticationError } from '@/api/conex-api';
 import { useAuth } from '@/auth/auth-context';
 import ThemedScrollView from '@/components/themed-scroll-view';
 import { BodyNotice } from '@/components/body-notice';
@@ -197,6 +197,7 @@ function CreateSiteForm({
   const colorScheme = useColorScheme() ?? 'light';
   const themeColors = Colors[colorScheme];
   const { t } = useTranslation();
+  const { logout } = useAuth();
   const [createError, setCreateError] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [isPathManual, setIsPathManual] = useState(false);
@@ -237,6 +238,11 @@ function CreateSiteForm({
       setPath('');
       await onCreated(site);
     } catch (error) {
+      if (isAuthenticationError(error)) {
+        await logout();
+        return;
+      }
+
       setCreateError(error instanceof Error ? error.message : t('sites.createError'));
     } finally {
       setIsCreating(false);
@@ -338,6 +344,7 @@ function SiteCard({
 }) {
   const colorScheme = useColorScheme() ?? 'light';
   const themeColors = Colors[colorScheme];
+  const { logout } = useAuth();
   const { locale, t } = useTranslation();
   const isWeb = Platform.OS === 'web';
   const swipeableRef = useRef<Swipeable>(null);
@@ -374,6 +381,11 @@ function SiteCard({
       await siteRepository.updateSiteVisibility(site.path, !site.public);
       await onVisibilityChange();
     } catch (error) {
+      if (isAuthenticationError(error)) {
+        await logout();
+        return;
+      }
+
       setSiteError(error instanceof Error ? error.message : t('sites.visibilityError'));
     } finally {
       setIsUpdatingVisibility(false);
@@ -396,6 +408,11 @@ function SiteCard({
       setIsAddingTag(false);
       await onTagsChange();
     } catch (error) {
+      if (isAuthenticationError(error)) {
+        await logout();
+        return;
+      }
+
       setSiteError(error instanceof Error ? error.message : t('sites.tagError'));
     } finally {
       setIsUpdatingTags(false);
@@ -423,6 +440,11 @@ function SiteCard({
       setSelectedTag('');
       await onTagsChange();
     } catch (error) {
+      if (isAuthenticationError(error)) {
+        await logout();
+        return;
+      }
+
       setSiteError(error instanceof Error ? error.message : t('sites.tagError'));
     } finally {
       setIsUpdatingTags(false);
@@ -465,6 +487,11 @@ function SiteCard({
       await siteRepository.deleteSite(site.path);
       await onDelete();
     } catch (error) {
+      if (isAuthenticationError(error)) {
+        await logout();
+        return;
+      }
+
       setSiteError(error instanceof Error ? error.message : t('sites.deleteError'));
     } finally {
       setIsDeleting(false);
