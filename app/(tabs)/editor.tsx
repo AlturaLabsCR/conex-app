@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { isAuthenticationError } from '@/api/conex-api';
+import { useAuth } from '@/auth/auth-context';
 // eslint-disable-next-line import/no-unresolved -- Metro resolves the .web/.native editor files.
 import { RichTextEditor } from '@/components/editor/rich-text-editor';
 import { BodyNotice } from '@/components/body-notice';
@@ -20,6 +22,7 @@ export default function EditorScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  const { logout } = useAuth();
   const [site, setSite] = useState<SiteWithContent | null>(null);
   const [draftHtml, setDraftHtml] = useState('');
   const [savedHtml, setSavedHtml] = useState('');
@@ -59,6 +62,11 @@ export default function EditorScreen() {
       }
     } catch (loadError) {
       if (isMounted()) {
+        if (isAuthenticationError(loadError)) {
+          await logout();
+          return;
+        }
+
         setError(loadError instanceof Error ? loadError.message : 'Unable to load site.');
         setSite(null);
         setDraftHtml('');
@@ -69,7 +77,7 @@ export default function EditorScreen() {
         setIsLoading(false);
       }
     }
-  }, [selectedPath]);
+  }, [logout, selectedPath]);
 
   useEffect(() => {
     let isMounted = true;
@@ -109,11 +117,16 @@ export default function EditorScreen() {
         await loadSite();
       }
     } catch (syncError) {
+      if (isAuthenticationError(syncError)) {
+        await logout();
+        return;
+      }
+
       setError(syncError instanceof Error ? syncError.message : 'Unable to sync changes.');
     } finally {
       setIsSaving(false);
     }
-  }, [draftHtml, isDirty, loadSite, site]);
+  }, [draftHtml, isDirty, loadSite, logout, site]);
 
   const persistLocalDraft = useCallback(
     async (nextHtml: string) => {

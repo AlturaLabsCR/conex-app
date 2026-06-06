@@ -122,6 +122,10 @@ export class ConexApiError extends Error {
   }
 }
 
+export function isAuthenticationError(error: unknown) {
+  return error instanceof ConexApiError && error.status === 401;
+}
+
 async function readStoredSession() {
   const storedSession = await AsyncStorage.getItem(SESSION_STORAGE_KEY);
 

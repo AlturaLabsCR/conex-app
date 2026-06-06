@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { isAuthenticationError } from '@/api/conex-api';
+import { useAuth } from '@/auth/auth-context';
+
 import { siteRepository } from './site-repository';
 import type { Site } from './types';
 
 export function useSites(reloadKey?: string) {
+  const { logout } = useAuth();
   const [error, setError] = useState('');
   const [sites, setSites] = useState<Site[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -17,11 +21,16 @@ export function useSites(reloadKey?: string) {
       setSites(nextSites);
       setError('');
     } catch (loadError) {
+      if (isAuthenticationError(loadError)) {
+        await logout();
+        return;
+      }
+
       setError(loadError instanceof Error ? loadError.message : 'Unable to load sites.');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [logout]);
 
   useEffect(() => {
     let isMounted = true;
@@ -37,6 +46,11 @@ export function useSites(reloadKey?: string) {
         }
       } catch (loadError) {
         if (isMounted) {
+          if (isAuthenticationError(loadError)) {
+            await logout();
+            return;
+          }
+
           setError(loadError instanceof Error ? loadError.message : 'Unable to load sites.');
         }
       } finally {
@@ -51,7 +65,7 @@ export function useSites(reloadKey?: string) {
     return () => {
       isMounted = false;
     };
-  }, [reloadKey]);
+  }, [logout, reloadKey]);
 
   return {
     reloadSites: loadSites,

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -21,6 +21,7 @@ import { ThemedActivityIndicator } from '@/components/themed-activity-indicator'
 import ThemedScrollView from '@/components/themed-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { TranslationKey, useTranslation } from '@/i18n';
@@ -75,10 +76,10 @@ export default function AccountScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCodeStep, setIsCodeStep] = useState(false);
   const [isChangingEmail, setIsChangingEmail] = useState(false);
+  const [isDangerZoneOpen, setIsDangerZoneOpen] = useState(false);
   const [emailInput, setEmailInput] = useState('');
   const [codeInput, setCodeInput] = useState('');
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [arePlansVisible, setArePlansVisible] = useState(false);
   const [isLoadingPlans, setIsLoadingPlans] = useState(false);
   const [paymentPlan, setPaymentPlan] = useState<Plan | null>(null);
   const [paymentError, setPaymentError] = useState('');
@@ -87,6 +88,9 @@ export default function AccountScreen() {
   const isLoggedIn = Boolean(email);
   const accountSubscription = account ? subscriptionFromApi(account.subscription) : null;
   const paidPlans = plans.filter((plan) => plan.id !== 'free');
+  const selectablePlans = accountSubscription
+    ? [accountSubscription.plan, ...paidPlans.filter((plan) => plan.id !== accountSubscription.plan.id)]
+    : paidPlans;
   const renewalUntil =
     accountSubscription?.plan.supportsRenewal &&
     hasBillingPeriod(accountSubscription.plan.billingPeriod)
@@ -99,9 +103,6 @@ export default function AccountScreen() {
   const dueDate = accountSubscription?.dueDate
     ? formatDate(accountSubscription.dueDate, locale)
     : t('account.noDueDate');
-  const planPrice = accountSubscription
-    ? formatRecurringPrice(accountSubscription.plan.price, accountSubscription.plan.billingPeriod, locale, t)
-    : '';
   const paypalClientID = PAYPAL_CLIENT_ID;
 
   async function handleLogin() {
@@ -187,16 +188,9 @@ export default function AccountScreen() {
     }
   }
 
-  async function handleSwitchPlan() {
+  const loadAvailablePlans = useCallback(async () => {
     clearError();
     setPaymentError('');
-
-    if (arePlansVisible) {
-      setArePlansVisible(false);
-      return;
-    }
-
-    setArePlansVisible(true);
 
     if (plans.length > 0) {
       return;
@@ -212,7 +206,15 @@ export default function AccountScreen() {
     } finally {
       setIsLoadingPlans(false);
     }
-  }
+  }, [clearError, plans.length]);
+
+  useEffect(() => {
+    if (!isLoggedIn || isChangingEmail) {
+      return;
+    }
+
+    void loadAvailablePlans();
+  }, [isChangingEmail, isLoggedIn, loadAvailablePlans]);
 
   function handleStartPayment(plan: Plan) {
     setPaymentError('');
@@ -239,7 +241,6 @@ export default function AccountScreen() {
     async (orderID: string) => {
       await capturePlanOrder(orderID);
       setPaymentPlan(null);
-      setArePlansVisible(false);
       await refreshAccount();
     },
     [refreshAccount]
@@ -294,18 +295,32 @@ export default function AccountScreen() {
                 { backgroundColor: themeColors.cardBackground, borderColor: themeColors.border },
               ]}>
               <View style={styles.planHeader}>
-                <ThemedText style={styles.planName}>{accountSubscription?.plan.name}</ThemedText>
-                <ThemedText type="subtitle" style={styles.planPrice}>
-                  {planPrice}
-                </ThemedText>
-              </View>
-              <View style={styles.planMeta}>
+                <ThemedText style={styles.planName}>{t('account.plan')}</ThemedText>
                 <ThemedText style={[styles.planMetaText, { color: themeColors.secondaryControl }]}>
                   {t('account.planDueDateLabel')} {dueDate}
                 </ThemedText>
-                {accountSubscription?.plan.benefits.length ? (
-                  <PlanBenefits benefits={accountSubscription.plan.benefits} />
-                ) : null}
+              </View>
+              {paymentError ? <BodyNotice message={paymentError} variant="error" /> : null}
+              <View style={styles.availablePlans}>
+                {isLoadingPlans ? (
+                  <ThemedActivityIndicator />
+                ) : selectablePlans.length > 0 ? (
+                  selectablePlans.map((plan) => (
+                    <PlanOption
+                      currentPlanID={accountSubscription?.plan.id}
+                      disabled={isSubmitting}
+                      key={plan.id}
+                      locale={locale}
+                      onPress={() => handleStartPayment(plan)}
+                      plan={plan}
+                      t={t}
+                    />
+                  ))
+                ) : (
+                  <ThemedText style={[styles.planMetaText, { color: themeColors.secondaryControl }]}>
+                    {t('account.noPlansAvailable')}
+                  </ThemedText>
+                )}
               </View>
               <View style={styles.planActions}>
                 {accountSubscription?.plan.supportsRenewal ? (
@@ -319,59 +334,44 @@ export default function AccountScreen() {
                     onPress={() => handleStartPayment(accountSubscription.plan)}
                   />
                 ) : null}
-                <AccountButton
-                  disabled={isSubmitting || isLoadingPlans}
-                  label={t('account.switchPlan')}
-                  onPress={handleSwitchPlan}
-                  tone="secondary"
-                />
               </View>
-              {paymentError ? <BodyNotice message={paymentError} variant="error" /> : null}
-              {arePlansVisible ? (
-                <View style={styles.availablePlans}>
-                  {isLoadingPlans ? (
-                    <ThemedActivityIndicator />
-                  ) : paidPlans.length > 0 ? (
-                    paidPlans.map((plan) => (
-                      <PlanOption
-                        currentPlanID={accountSubscription?.plan.id}
-                        disabled={isSubmitting}
-                        key={plan.id}
-                        locale={locale}
-                        onPress={() => handleStartPayment(plan)}
-                        plan={plan}
-                        t={t}
-                      />
-                    ))
-                  ) : (
-                    <ThemedText style={[styles.planMetaText, { color: themeColors.secondaryControl }]}>
-                      {t('account.noPlansAvailable')}
-                    </ThemedText>
-                  )}
-                </View>
-              ) : null}
             </ThemedView>
             <ThemedView
               style={[
                 styles.planCard,
                 { backgroundColor: themeColors.cardBackground, borderColor: themeColors.border },
               ]}>
-              <View style={styles.planHeader}>
+              <Pressable
+                onPress={() => setIsDangerZoneOpen((value) => !value)}
+                style={({ pressed }) => [
+                  styles.disclosureHeader,
+                  { opacity: pressed ? 0.75 : 1 },
+                ]}>
                 <ThemedText style={styles.planName}>{t('account.dangerZone')}</ThemedText>
-              </View>
-              <BodyNotice
-                message={t('account.deleteAccountWarning')}
-                title={t('account.warning')}
-                variant="warning"
-              />
-              <View style={styles.planActions}>
-                <AccountButton
-                  disabled={isSubmitting}
-                  label={t('account.deleteAccount')}
-                  onPress={handleDeleteAccount}
-                  tone="destructive"
+                <IconSymbol
+                  name="chevron.right"
+                  size={20}
+                  color={themeColors.icon}
+                  style={{ transform: [{ rotate: isDangerZoneOpen ? '90deg' : '0deg' }] }}
                 />
-              </View>
+              </Pressable>
+              {isDangerZoneOpen ? (
+                <View style={styles.disclosureContent}>
+                  <BodyNotice
+                    message={t('account.deleteAccountWarning')}
+                    title={t('account.warning')}
+                    variant="warning"
+                  />
+                  <View style={styles.planActions}>
+                    <AccountButton
+                      disabled={isSubmitting}
+                      label={t('account.deleteAccount')}
+                      onPress={handleDeleteAccount}
+                      tone="destructive"
+                    />
+                  </View>
+                </View>
+              ) : null}
             </ThemedView>
           </ThemedView>
         ) : (
@@ -758,21 +758,24 @@ function PlanOption({
       onPress={onPress}
       style={({ pressed }) => [
         styles.planOption,
+        isCurrentPlan ? styles.currentPlanOption : null,
         {
-          borderColor: themeColors.border,
-          opacity: disabled || isCurrentPlan ? 0.6 : pressed ? 0.8 : 1,
+          backgroundColor: isCurrentPlan ? themeColors.background : 'transparent',
+          borderColor: isCurrentPlan ? themeColors.control : themeColors.border,
+          opacity: disabled && !isCurrentPlan ? 0.6 : pressed ? 0.8 : 1,
         },
       ]}>
       <View style={styles.planOptionText}>
-        <ThemedText type="defaultSemiBold">{plan.name}</ThemedText>
-        <ThemedText style={[styles.planMetaText, { color: themeColors.secondaryControl }]}>
-          {formatRecurringPrice(plan.price, plan.billingPeriod, locale, t)}
-        </ThemedText>
+        <View style={styles.planOptionHeader}>
+          <ThemedText type="defaultSemiBold" style={styles.planOptionName}>
+            {plan.name}
+          </ThemedText>
+          <ThemedText type="defaultSemiBold" style={styles.planOptionPrice}>
+            {formatRecurringPrice(plan.price, plan.billingPeriod, locale, t)}
+          </ThemedText>
+        </View>
         {plan.benefits.length > 0 ? <PlanBenefits benefits={plan.benefits} /> : null}
       </View>
-      <ThemedText style={[styles.planMetaText, { color: themeColors.secondaryControl }]}>
-        {isCurrentPlan ? t('account.currentPlan') : t('account.selectPlan')}
-      </ThemedText>
     </Pressable>
   );
 }
@@ -784,11 +787,12 @@ function PlanBenefits({ benefits }: { benefits: string[] }) {
   return (
     <View style={styles.planBenefits}>
       {benefits.map((benefit) => (
-        <ThemedText
-          key={benefit}
-          style={[styles.planBenefitText, { color: themeColors.secondaryControl }]}>
-          {benefit}
-        </ThemedText>
+        <View key={benefit} style={styles.planBenefit}>
+          <View style={[styles.planBenefitBullet, { backgroundColor: themeColors.secondaryControl }]} />
+          <ThemedText style={[styles.planBenefitText, { color: themeColors.secondaryControl }]}>
+            {benefit}
+          </ThemedText>
+        </View>
       ))}
     </View>
   );
@@ -868,9 +872,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  planPrice: {
-    flexShrink: 0,
-  },
   planName: {
     fontSize: 20,
     lineHeight: 24,
@@ -898,22 +899,54 @@ const styles = StyleSheet.create({
     minHeight: 62,
     borderWidth: 1,
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  currentPlanOption: {
+    borderWidth: 2,
+  },
+  planOptionText: {
+    gap: 8,
+  },
+  planOptionHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  planOptionName: {
+    flex: 1,
+  },
+  planOptionPrice: {
+    flexShrink: 0,
+    textAlign: 'right',
+  },
+  disclosureHeader: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
   },
-  planOptionText: {
-    flex: 1,
-    gap: 2,
+  disclosureContent: {
+    gap: 16,
   },
   planBenefits: {
-    gap: 2,
-    paddingTop: 4,
+    gap: 4,
+  },
+  planBenefit: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  planBenefitBullet: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 6,
   },
   planBenefitText: {
+    flex: 1,
     fontSize: 12,
     lineHeight: 16,
   },
