@@ -1,0 +1,30 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Conex logo concept</title>
+  <desc>A sharp geometric C with a connected node for the Conex app.</desc>
+  <defs>
+    <linearGradient id="bg" x1="160" y1="128" x2="864" y2="896" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0A7EA4"/>
+      <stop offset="1" stop-color="#39B8A8"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="288" y1="220" x2="760" y2="812" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E4FAF7"/>
+    </linearGradient>
+    <filter id="shadow" x="120" y="132" width="784" height="760" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="28" stdDeviation="26" flood-color="#053D50" flood-opacity="0.24"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+
+  <g filter="url(#shadow)">
+    <path
+      d="M526 812C358.65 812 228 682.721 228 516C228 349.279 358.65 220 526 220C631.558 220 721.267 270.521 773.718 347.379L652.355 417.44C624.539 378.343 579.183 354 526 354C435.248 354 366 423.537 366 516C366 608.463 435.248 678 526 678C579.183 678 624.539 653.657 652.355 614.56L773.718 684.621C721.267 761.479 631.558 812 526 812Z"
+      fill="url(#mark)"/>
+    <path
+      d="M522 478H706L782 554H522V478Z"
+      fill="url(#mark)"/>
+    <circle cx="754" cy="516" r="82" fill="url(#mark)"/>
+    <circle cx="754" cy="516" r="36" fill="#0A7EA4"/>
+  </g>
+</svg>
