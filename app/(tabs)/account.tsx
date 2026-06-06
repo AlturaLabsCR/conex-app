@@ -28,6 +28,7 @@ import { TranslationKey, useTranslation } from '@/i18n';
 // Platform-only module: Metro resolves index.web.tsx or index.native.tsx here.
 // eslint-disable-next-line import/no-unresolved
 import { PayPalCheckoutModal } from '@/components/paypal-checkout-modal';
+import { PAYPAL_CLIENT_ID } from '@/constants/public-config';
 
 type BillingPeriod = {
   unit: string;
@@ -101,7 +102,7 @@ export default function AccountScreen() {
   const planPrice = accountSubscription
     ? formatRecurringPrice(accountSubscription.plan.price, accountSubscription.plan.billingPeriod, locale, t)
     : '';
-  const paypalClientID = process.env.EXPO_PUBLIC_PAYPAL_CLIENT_ID ?? '';
+  const paypalClientID = PAYPAL_CLIENT_ID;
 
   async function handleLogin() {
     if (!emailInput) {

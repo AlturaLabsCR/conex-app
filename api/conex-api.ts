@@ -1,14 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const API_BASE_URL = normalizeBaseURL(
-  process.env.EXPO_PUBLIC_CONEX_API_BASE_URL || 'https://conex.co.cr'
-);
+import { CONEX_API_BASE_URL } from '@/constants/public-config';
+
+export const API_BASE_URL = CONEX_API_BASE_URL;
 const SESSION_STORAGE_KEY = 'conex.session';
 const REFRESH_EARLY_MS = 30_000;
-
-function normalizeBaseURL(url: string) {
-  return url.replace(/\/+$/, '');
-}
 
 export type ApiSession = {
   email: string;
